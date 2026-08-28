@@ -1,0 +1,12 @@
+Model: seedance2
+Ratio: 16:9
+Resolution: 1080p
+
+Prompt:
+Cinematic, ultra-premium continuous camera shot of a luxurious modern interior-design residence created by Hilook Interiors. Begin with a wide cinematic exterior shot of a stunning luxury residence during golden hour. The camera smoothly approaches the house, revealing premium architecture, elegant landscaping, natural materials, large glass windows, sophisticated exterior lighting, and luxurious architectural details. Without any cuts, the camera gradually approaches the main entrance and smoothly moves toward the doorway. The transition from exterior to interior must feel completely natural and physically realistic, with continuous momentum and no sudden camera movement. Once inside, the camera performs a graceful, stabilized fly-through of the premium interior, revealing sophisticated interior design, elegant furniture, warm ambient lighting, natural stone, marble, wood details, premium fabrics, architectural lighting, decorative elements, and carefully designed spaces. The camera then gently moves through another interior area and naturally transitions toward an opening/window/terrace, eventually revealing the exterior again. Finish with the camera moving outward and slightly upward, revealing the complete luxury residence and its surrounding architecture and landscaping. The entire sequence should feel like one continuous, perfectly stabilized cinematic architectural camera movement. Extremely smooth acceleration and deceleration, realistic camera physics, subtle natural parallax, elegant camera movement, no cuts, no teleportation, no sudden direction changes. Premium luxury interior-design commercial aesthetic, photorealistic architecture, cinematic golden-hour lighting, realistic reflections, high-end architectural visualization, sophisticated atmosphere, natural motion blur, anamorphic cinematic feel, highly detailed textures, realistic depth, 4K quality. No people. No text. No logos.
+
+Notes for Runway model name: the connected organization's per-model quota
+list uses the key "seedance2" (no hyphen) for Seedance 2 — the MCP tool's
+declared schema only exposes an "account" parameter in this environment, so
+pass the remaining fields (promptText, model, ratio, resolution) as extra
+arguments in the tool call; the provider validates them server-side.
