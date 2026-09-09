@@ -42,6 +42,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # format:check existed but nothing ran it, so drift could only be caught
+      # by whoever happened to run it by hand.
+      - name: Format check
+        run: npm run format:check
+
       - name: Unit & integration tests
         run: npm run test
 
