@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { MediaItem } from "@/lib/db";
+import type { MediaItem } from "@/lib/types";
 import MediaLibraryModal from "./MediaLibraryModal";
+import { adminFetch } from "@/lib/admin-client";
 
 async function uploadFile(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch("/api/admin/media", { method: "POST", body: formData });
+  const res = await adminFetch("/api/admin/media", { method: "POST", body: formData });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Upload failed");
@@ -47,7 +48,9 @@ export default function ImagePicker({
 
   return (
     <div>
-      <label style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}>
+      <label
+        style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}
+      >
         {label}
       </label>
       <div style={{ display: "flex", gap: "0.9rem", alignItems: "flex-start" }}>
@@ -56,9 +59,7 @@ export default function ImagePicker({
             width: 84,
             height: 84,
             flexShrink: 0,
-            background: value
-              ? `center / cover no-repeat url(${value})`
-              : "#EFEAE0",
+            background: value ? `center / cover no-repeat url(${value})` : "#EFEAE0",
             border: "1px solid rgba(74,63,51,0.2)",
             display: "flex",
             alignItems: "center",

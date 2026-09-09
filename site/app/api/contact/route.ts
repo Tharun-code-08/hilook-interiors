@@ -1,36 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { nanoid } from "nanoid";
-import { getDB } from "@/lib/db";
+import { createSubmission } from "@/lib/repos/operations";
+import { clientIp } from "@/lib/request";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { contactSchema, parseBody } from "@/lib/validation";
+
+/** Submissions arriving faster than this after the form rendered are scripted. */
+const MIN_FILL_MS = 3000;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
-  const { name, email, phone, message } = body as Record<string, unknown>;
-  if (
-    typeof name !== "string" ||
-    !name.trim() ||
-    typeof email !== "string" ||
-    !email.trim() ||
-    typeof message !== "string" ||
-    !message.trim()
-  ) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  const ip = clientIp(req);
+
+  const limit = await checkRateLimit("contact", ip);
+  if (!limit.ok) {
+    return rateLimitResponse(
+      limit,
+      "Too many enquiries sent from this connection. Please try again later, or email us directly."
+    );
   }
 
-  const db = await getDB();
-  db.data.submissions.unshift({
-    id: nanoid(),
-    name: name.trim(),
-    email: email.trim(),
-    phone: typeof phone === "string" ? phone.trim() : "",
-    message: message.trim(),
-    createdAt: new Date().toISOString(),
-    read: false,
-    responded: false,
-  });
-  await db.write();
+  const parsed = await parseBody(req, contactSchema);
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { error: parsed.error, fieldErrors: parsed.fieldErrors },
+      { status: 400 }
+    );
+  }
 
+  const { name, email, phone, message, website, startedAt } = parsed.data;
+
+  // Spam signals. Both return the normal success shape: telling a bot which
+  // check it tripped teaches the author how to evade it, and a false positive
+  // on a real visitor should not look like a broken form.
+  const trippedHoneypot = website.trim().length > 0;
+  const submittedTooFast = startedAt !== undefined && Date.now() - startedAt < MIN_FILL_MS;
+
+  if (trippedHoneypot || submittedTooFast) {
+    console.warn(
+      `[hilook] contact submission discarded as spam (${trippedHoneypot ? "honeypot" : "timing"}) from ${ip}`
+    );
+    return NextResponse.json({ ok: true });
+  }
+
+  await createSubmission({ name, email, phone, message });
   return NextResponse.json({ ok: true });
 }

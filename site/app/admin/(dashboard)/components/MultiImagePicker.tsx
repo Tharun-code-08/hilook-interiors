@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { MediaItem } from "@/lib/db";
+import type { MediaItem } from "@/lib/types";
 import MediaLibraryModal from "./MediaLibraryModal";
+import { adminFetch } from "@/lib/admin-client";
 
 export default function MultiImagePicker({
   label,
@@ -25,7 +26,7 @@ export default function MultiImagePicker({
     setError("");
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/admin/media", { method: "POST", body: formData });
+    const res = await adminFetch("/api/admin/media", { method: "POST", body: formData });
     if (res.ok) {
       const item: MediaItem = await res.json();
       onChange([...values, item.url]);
@@ -51,12 +52,21 @@ export default function MultiImagePicker({
 
   return (
     <div>
-      <label style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}>
+      <label
+        style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}
+      >
         {label}
       </label>
 
       {values.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: "0.6rem", marginBottom: "0.75rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
+            gap: "0.6rem",
+            marginBottom: "0.75rem",
+          }}
+        >
           {values.map((url, i) => (
             <div key={`${url}-${i}`} style={{ position: "relative" }}>
               <div
@@ -87,7 +97,15 @@ export default function MultiImagePicker({
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
                   title="Move earlier"
-                  style={{ flex: 1, fontSize: "0.62rem", padding: "0.15rem", border: "1px solid rgba(74,63,51,0.24)", background: "transparent", cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.4 : 1 }}
+                  style={{
+                    flex: 1,
+                    fontSize: "0.62rem",
+                    padding: "0.15rem",
+                    border: "1px solid rgba(74,63,51,0.24)",
+                    background: "transparent",
+                    cursor: i === 0 ? "default" : "pointer",
+                    opacity: i === 0 ? 0.4 : 1,
+                  }}
                 >
                   ‹
                 </button>
@@ -96,7 +114,15 @@ export default function MultiImagePicker({
                   onClick={() => move(i, 1)}
                   disabled={i === values.length - 1}
                   title="Move later"
-                  style={{ flex: 1, fontSize: "0.62rem", padding: "0.15rem", border: "1px solid rgba(74,63,51,0.24)", background: "transparent", cursor: i === values.length - 1 ? "default" : "pointer", opacity: i === values.length - 1 ? 0.4 : 1 }}
+                  style={{
+                    flex: 1,
+                    fontSize: "0.62rem",
+                    padding: "0.15rem",
+                    border: "1px solid rgba(74,63,51,0.24)",
+                    background: "transparent",
+                    cursor: i === values.length - 1 ? "default" : "pointer",
+                    opacity: i === values.length - 1 ? 0.4 : 1,
+                  }}
                 >
                   ›
                 </button>
@@ -104,7 +130,15 @@ export default function MultiImagePicker({
                   type="button"
                   onClick={() => removeAt(i)}
                   title="Remove"
-                  style={{ flex: 1, fontSize: "0.62rem", padding: "0.15rem", border: "1px solid #5A2630", color: "#5A2630", background: "transparent", cursor: "pointer" }}
+                  style={{
+                    flex: 1,
+                    fontSize: "0.62rem",
+                    padding: "0.15rem",
+                    border: "1px solid #5A2630",
+                    color: "#5A2630",
+                    background: "transparent",
+                    cursor: "pointer",
+                  }}
                 >
                   ✕
                 </button>
@@ -139,12 +173,21 @@ export default function MultiImagePicker({
         <button
           type="button"
           onClick={() => setLibraryOpen(true)}
-          style={{ background: "transparent", border: "1px solid rgba(74,63,51,0.24)", color: "#26231F", padding: "0.4rem 0.8rem", fontSize: "0.72rem", cursor: "pointer" }}
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(74,63,51,0.24)",
+            color: "#26231F",
+            padding: "0.4rem 0.8rem",
+            fontSize: "0.72rem",
+            cursor: "pointer",
+          }}
         >
           Add from Library
         </button>
       </div>
-      {error && <p style={{ color: "#5A2630", fontSize: "0.72rem", marginTop: "0.4rem" }}>{error}</p>}
+      {error && (
+        <p style={{ color: "#5A2630", fontSize: "0.72rem", marginTop: "0.4rem" }}>{error}</p>
+      )}
 
       {libraryOpen && (
         <MediaLibraryModal

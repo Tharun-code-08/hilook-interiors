@@ -1,14 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { updateAward, deleteAward } from "@/lib/repos/content";
+import { notFound, requireBody, requireSession } from "@/lib/api";
+import { awardUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await requireBody(req, awardUpdateSchema);
+  if (!guard.ok) return guard.response;
+
+  const { id } = await params;
+  const updated = await updateAward(id, guard.data);
+  if (!updated) return notFound();
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "update",
+    entity: "award",
+    entityId: id,
+    detail: updated.title,
+    ip: clientIp(req),
+  });
+
+  return NextResponse.json(updated);
+}
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
-  const db = await getDB();
-  db.data.awards = db.data.awards.filter((a) => a.id !== id);
-  await db.write();
+  const { id } = await params;
+  const removed = await deleteAward(id);
+  if (!removed) return notFound();
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "award",
+    entityId: id,
+    detail: removed.title,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }

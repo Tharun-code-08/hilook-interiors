@@ -1,33 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { deleteSubmission, updateSubmission } from "@/lib/repos/operations";
+import { notFound, requireBody, requireSession } from "@/lib/api";
+import { submissionUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, submissionUpdateSchema);
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
-
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-
-  const db = await getDB();
-  const submission = db.data.submissions.find((s) => s.id === id);
-  if (!submission) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (typeof body.read === "boolean") submission.read = body.read;
-  if (typeof body.responded === "boolean") submission.responded = body.responded;
-
-  await db.write();
-  return NextResponse.json(submission);
+  const updated = await updateSubmission(id, guard.data);
+  if (!updated) return notFound();
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
-  const db = await getDB();
-  db.data.submissions = db.data.submissions.filter((s) => s.id !== id);
-  await db.write();
+  const { id } = await params;
+  const removed = await deleteSubmission(id);
+  if (!removed) return notFound();
+
+  // Deleting an enquiry destroys a potential client record — worth an audit
+  // entry even though marking it read is not.
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "submission",
+    entityId: id,
+    detail: `${removed.name} <${removed.email}>`,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }

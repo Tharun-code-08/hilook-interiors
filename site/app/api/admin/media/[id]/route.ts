@@ -1,22 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import { unlink } from "fs/promises";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { deleteMedia } from "@/lib/repos/operations";
+import { notFound, requireSession } from "@/lib/api";
+import { deleteObject } from "@/lib/storage";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
+  const removed = await deleteMedia(id);
+  if (!removed) return notFound();
 
-  const db = await getDB();
-  const item = db.data.media.find((m) => m.id === id);
-  if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Row first, then the object: a deleted row with an orphaned object wastes
+  // storage, but an orphaned row whose object is gone renders broken images.
+  await deleteObject(removed.storageKey);
 
-  const filePath = path.join(process.cwd(), "public", item.url);
-  await unlink(filePath).catch(() => {});
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "media",
+    entityId: id,
+    detail: removed.filename,
+    ip: clientIp(req),
+  });
 
-  db.data.media = db.data.media.filter((m) => m.id !== id);
-  await db.write();
   return NextResponse.json({ ok: true });
 }

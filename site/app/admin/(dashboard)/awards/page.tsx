@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AwardItem } from "@/lib/db";
+import type { AwardItem } from "@/lib/types";
+import { adminFetch } from "@/lib/admin-client";
+import { useConfirm } from "../components/ConfirmDialog";
+import { jsonBody, useMutation } from "../components/useMutation";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -17,10 +20,12 @@ export default function AdminAwardsPage() {
   const [items, setItems] = useState<AwardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
+  const { mutate } = useMutation();
+  const confirm = useConfirm();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/awards");
+    const res = await adminFetch("/api/admin/awards");
     if (res.ok) setItems(await res.json());
     setLoading(false);
   }
@@ -32,27 +37,53 @@ export default function AdminAwardsPage() {
   async function add(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    await fetch("/api/admin/awards", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const created = await mutate(
+      "/api/admin/awards",
+      { method: "POST", ...jsonBody(form) },
+      { successMessage: "Saved." }
+    );
+    if (!created) return;
     setForm(emptyForm);
     load();
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this entry?")) return;
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    await fetch(`/api/admin/awards/${id}`, { method: "DELETE" });
+    const target = items.find((item) => item.id === id);
+    const ok = await confirm({
+      title: `Remove “${target?.title ?? "this item"}”?`,
+      body: "This entry is removed from the recognition section.",
+      confirmLabel: "Remove entry",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const previous = items;
+    await mutate(
+      `/api/admin/awards/${id}`,
+      { method: "DELETE" },
+      {
+        optimistic: () => setItems((prev) => prev.filter((i) => i.id !== id)),
+        rollback: () => setItems(previous),
+        successMessage: "Entry removed.",
+      }
+    );
   }
 
   return (
     <div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: "0.6rem", color: "#26231F" }}>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: "1.6rem",
+          marginBottom: "0.6rem",
+          color: "#26231F",
+        }}
+      >
         Awards, Press & Certifications
       </h1>
-      <p style={{ fontSize: "0.85rem", color: "#777168", marginBottom: "1.75rem", maxWidth: "60ch" }}>
+      <p
+        style={{ fontSize: "0.85rem", color: "#777168", marginBottom: "1.75rem", maxWidth: "60ch" }}
+      >
         This section only appears on the public site once you add real entries here — nothing is
         invented or shown by default.
       </p>
@@ -69,7 +100,11 @@ export default function AdminAwardsPage() {
           maxWidth: 560,
         }}
       >
-        <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as AwardItem["kind"] })} style={inputStyle}>
+        <select
+          value={form.kind}
+          onChange={(e) => setForm({ ...form, kind: e.target.value as AwardItem["kind"] })}
+          style={inputStyle}
+        >
           <option value="award">Award</option>
           <option value="press">Press</option>
           <option value="certification">Certification</option>
@@ -94,7 +129,14 @@ export default function AdminAwardsPage() {
         />
         <button
           type="submit"
-          style={{ justifySelf: "start", background: "#B08A4A", color: "#fff", border: "none", padding: "0.6rem 1.4rem", fontSize: "0.8rem" }}
+          style={{
+            justifySelf: "start",
+            background: "#B08A4A",
+            color: "#fff",
+            border: "none",
+            padding: "0.6rem 1.4rem",
+            fontSize: "0.8rem",
+          }}
         >
           Add Entry
         </button>
@@ -107,15 +149,42 @@ export default function AdminAwardsPage() {
       ) : (
         <div style={{ display: "grid", gap: "0.6rem" }}>
           {items.map((item) => (
-            <div key={item.id} style={{ background: "#fff", border: "1px solid rgba(74,63,51,0.16)", padding: "1rem 1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div
+              key={item.id}
+              style={{
+                background: "#fff",
+                border: "1px solid rgba(74,63,51,0.16)",
+                padding: "1rem 1.25rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <div>
-                <p style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "#B08A4A" }}>{item.kind}</p>
+                <p
+                  style={{
+                    fontSize: "0.7rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: "#B08A4A",
+                  }}
+                >
+                  {item.kind}
+                </p>
                 <p style={{ color: "#26231F" }}>{item.title}</p>
-                {item.detail && <p style={{ fontSize: "0.8rem", color: "#777168" }}>{item.detail}</p>}
+                {item.detail && (
+                  <p style={{ fontSize: "0.8rem", color: "#777168" }}>{item.detail}</p>
+                )}
               </div>
               <button
                 onClick={() => remove(item.id)}
-                style={{ background: "transparent", border: "1px solid #5A2630", color: "#5A2630", padding: "0.35rem 0.75rem", fontSize: "0.72rem" }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #5A2630",
+                  color: "#5A2630",
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.72rem",
+                }}
               >
                 Remove
               </button>

@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { getSettings, updateSettings } from "@/lib/repos/settings";
+import { requireBody, requireSession } from "@/lib/api";
+import { settingsUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function GET() {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = await getDB();
-  return NextResponse.json(db.data.settings);
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+  return NextResponse.json(await getSettings());
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, settingsUpdateSchema);
+  if (!guard.ok) return guard.response;
 
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  // Only the keys that actually differ are written, each as its own row, so
+  // two editors changing different fields can't clobber one another.
+  const { settings, changed } = await updateSettings(guard.data);
+
+  if (changed.length > 0) {
+    await tryRecordAudit({
+      actor: guard.session,
+      action: "update",
+      entity: "settings",
+      detail: changed.join(", "),
+      ip: clientIp(req),
+    });
   }
 
-  const db = await getDB();
-  const allowed = Object.keys(db.data.settings) as (keyof typeof db.data.settings)[];
-  for (const key of allowed) {
-    if (typeof body[key] === "string") {
-      (db.data.settings as Record<string, string>)[key] = body[key];
-    }
-  }
-  await db.write();
-  return NextResponse.json(db.data.settings);
+  return NextResponse.json(settings);
 }

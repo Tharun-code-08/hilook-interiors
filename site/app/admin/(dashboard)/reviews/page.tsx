@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Review } from "@/lib/db";
+import type { Review } from "@/lib/types";
 import ImagePicker from "../components/ImagePicker";
+import { adminFetch } from "@/lib/admin-client";
+import { useConfirm } from "../components/ConfirmDialog";
+import { jsonBody, useMutation } from "../components/useMutation";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -23,10 +26,12 @@ export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
+  const { mutate } = useMutation();
+  const confirm = useConfirm();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/reviews");
+    const res = await adminFetch("/api/admin/reviews");
     if (res.ok) setReviews(await res.json());
     setLoading(false);
   }
@@ -38,33 +43,63 @@ export default function AdminReviewsPage() {
   async function addReview(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.text.trim()) return;
-    await fetch("/api/admin/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const created = await mutate(
+      "/api/admin/reviews",
+      { method: "POST", ...jsonBody(form) },
+      { successMessage: "Saved." }
+    );
+    if (!created) return;
     setForm(emptyForm);
     load();
   }
 
   async function updateReview(id: string, patch: Partial<Review>) {
-    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-    await fetch(`/api/admin/reviews/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
+    // Snapshot before the optimistic write so a rejected save is undone
+    // rather than left on screen as though it succeeded.
+    const previous = reviews;
+    await mutate(
+      `/api/admin/reviews/${id}`,
+      { method: "PUT", ...jsonBody(patch) },
+      {
+        optimistic: () =>
+          setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r))),
+        rollback: () => setReviews(previous),
+      }
+    );
   }
 
   async function removeReview(id: string) {
-    if (!confirm("Delete this review?")) return;
-    setReviews((prev) => prev.filter((r) => r.id !== id));
-    await fetch(`/api/admin/reviews/${id}`, { method: "DELETE" });
+    const target = reviews.find((item) => item.id === id);
+    const ok = await confirm({
+      title: `Delete the review from ${target?.name ?? "this item"}?`,
+      body: "The testimonial is permanently removed.",
+      confirmLabel: "Delete review",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const previous = reviews;
+    await mutate(
+      `/api/admin/reviews/${id}`,
+      { method: "DELETE" },
+      {
+        optimistic: () => setReviews((prev) => prev.filter((r) => r.id !== id)),
+        rollback: () => setReviews(previous),
+        successMessage: "Review deleted.",
+      }
+    );
   }
 
   return (
     <div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: "1.75rem", color: "#26231F" }}>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: "1.6rem",
+          marginBottom: "1.75rem",
+          color: "#26231F",
+        }}
+      >
         Reviews Management
       </h1>
 
@@ -105,10 +140,21 @@ export default function AdminReviewsPage() {
             </option>
           ))}
         </select>
-        <ImagePicker label="Client Photo" value={form.photo} onChange={(url) => setForm({ ...form, photo: url })} />
+        <ImagePicker
+          label="Client Photo"
+          value={form.photo}
+          onChange={(url) => setForm({ ...form, photo: url })}
+        />
         <button
           type="submit"
-          style={{ justifySelf: "start", background: "#B08A4A", color: "#fff", border: "none", padding: "0.6rem 1.4rem", fontSize: "0.8rem" }}
+          style={{
+            justifySelf: "start",
+            background: "#B08A4A",
+            color: "#fff",
+            border: "none",
+            padding: "0.6rem 1.4rem",
+            fontSize: "0.8rem",
+          }}
         >
           Add Review
         </button>
@@ -119,8 +165,22 @@ export default function AdminReviewsPage() {
       ) : (
         <div style={{ display: "grid", gap: "0.75rem" }}>
           {reviews.map((r) => (
-            <div key={r.id} style={{ background: "#fff", border: "1px solid rgba(74,63,51,0.16)", padding: "1rem 1.25rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+            <div
+              key={r.id}
+              style={{
+                background: "#fff",
+                border: "1px solid rgba(74,63,51,0.16)",
+                padding: "1rem 1.25rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "1rem",
+                }}
+              >
                 <div style={{ flex: 1 }}>
                   <input
                     value={r.name}
@@ -141,7 +201,14 @@ export default function AdminReviewsPage() {
                     />
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                    alignItems: "flex-end",
+                  }}
+                >
                   <label style={{ fontSize: "0.72rem", color: "#777168" }}>
                     <input
                       type="checkbox"
@@ -160,7 +227,13 @@ export default function AdminReviewsPage() {
                   </label>
                   <button
                     onClick={() => removeReview(r.id)}
-                    style={{ background: "transparent", border: "1px solid #5A2630", color: "#5A2630", padding: "0.3rem 0.7rem", fontSize: "0.7rem" }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #5A2630",
+                      color: "#5A2630",
+                      padding: "0.3rem 0.7rem",
+                      fontSize: "0.7rem",
+                    }}
                   >
                     Delete
                   </button>

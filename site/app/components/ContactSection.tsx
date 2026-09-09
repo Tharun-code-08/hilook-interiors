@@ -1,28 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Reveal from "./Reveal";
-import type { Settings } from "@/lib/db";
+import type { Settings } from "@/lib/types";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
 export default function ContactSection({ settings }: { settings: Settings }) {
   const [status, setStatus] = useState<Status>("idle");
   const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Honeypot: hidden from sighted users and from assistive tech, so a real
+  // visitor never fills it. Most naive bots fill every input they find.
+  const [website, setWebsite] = useState("");
+
+  // When this form first rendered. A submission arriving within a few seconds
+  // of that is almost certainly scripted; the server decides, not us.
+  const startedAtRef = useRef(Date.now());
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("submitting");
+    setErrorMessage(null);
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, website, startedAt: startedAtRef.current }),
       });
-      if (!res.ok) throw new Error("failed");
+
+      if (!res.ok) {
+        // The API returns a usable message now — show it rather than a
+        // generic failure, so a rejected email or a rate limit is actionable.
+        let message = "Something went wrong. Please try again.";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          /* keep the fallback */
+        }
+        setErrorMessage(message);
+        setStatus("error");
+        return;
+      }
+
       setStatus("success");
       setForm({ name: "", email: "", phone: "", message: "" });
+      startedAtRef.current = Date.now();
     } catch {
+      setErrorMessage("Couldn't reach the server. Check your connection and try again.");
       setStatus("error");
     }
   }
@@ -93,6 +120,33 @@ export default function ContactSection({ settings }: { settings: Settings }) {
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
                 style={{ ...inputStyle, resize: "vertical" }}
               />
+
+              {/* Honeypot. Hidden from sight, from the tab order, and from
+                  assistive tech — a person cannot reach it, so anything in it
+                  came from a script. Not display:none: some bots skip fields
+                  that are obviously hidden that way. */}
+              <div
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "-9999px",
+                  width: 1,
+                  height: 1,
+                  overflow: "hidden",
+                }}
+              >
+                <label htmlFor="hi-website">Website (leave this blank)</label>
+                <input
+                  id="hi-website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
+              </div>
+
               <button
                 type="submit"
                 className="hi-cta"
@@ -102,13 +156,13 @@ export default function ContactSection({ settings }: { settings: Settings }) {
                 {status === "submitting" ? "Sending..." : "Send Inquiry"}
               </button>
               {status === "success" && (
-                <p style={{ color: "#173F35", fontSize: "0.85rem" }}>
+                <p role="status" style={{ color: "#173F35", fontSize: "0.85rem" }}>
                   Thank you — we&rsquo;ll be in touch shortly.
                 </p>
               )}
               {status === "error" && (
-                <p style={{ color: "#5A2630", fontSize: "0.85rem" }}>
-                  Something went wrong. Please try again.
+                <p role="alert" style={{ color: "#5A2630", fontSize: "0.85rem" }}>
+                  {errorMessage ?? "Something went wrong. Please try again."}
                 </p>
               )}
             </form>
@@ -148,39 +202,77 @@ export default function ContactSection({ settings }: { settings: Settings }) {
               </div>
               <div style={{ display: "flex", gap: "1.1rem", marginTop: "0.5rem" }}>
                 {settings.instagramUrl && (
-                  <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" className="hi-label">
+                  <a
+                    href={settings.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hi-label"
+                  >
                     Instagram
                   </a>
                 )}
                 {settings.pinterestUrl && (
-                  <a href={settings.pinterestUrl} target="_blank" rel="noopener noreferrer" className="hi-label">
+                  <a
+                    href={settings.pinterestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hi-label"
+                  >
                     Pinterest
                   </a>
                 )}
                 {settings.facebookUrl && (
-                  <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" className="hi-label">
+                  <a
+                    href={settings.facebookUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hi-label"
+                  >
                     Facebook
                   </a>
                 )}
               </div>
+              {/* This was a 220px gradient rectangle with the words "STUDIO
+                  LOCATION MAP" printed across it — a placeholder that read as
+                  an unfinished page rather than a map. A real embed needs a
+                  real address (still placeholder in the store) and costs a
+                  third-party iframe on every load, so until there's an address
+                  worth mapping, this space does something honest instead. */}
               <div
-                aria-hidden
                 style={{
-                  marginTop: "1rem",
-                  height: 220,
-                  background:
-                    "linear-gradient(155deg, rgba(23,63,53,0.9), rgba(38,35,31,0.9))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "rgba(248,242,232,0.6)",
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "0.8rem",
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
+                  marginTop: "1.25rem",
+                  padding: "1.6rem",
+                  background: "var(--hi-surface-alt)",
+                  borderLeft: "2px solid var(--hi-accent)",
                 }}
               >
-                Studio Location Map
+                <p className="hi-label" style={{ marginBottom: "0.7rem" }}>
+                  Consultations
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--font-playfair)",
+                    fontSize: "1.2rem",
+                    lineHeight: 1.5,
+                    color: "var(--hi-ink)",
+                    marginBottom: "0.9rem",
+                    textWrap: "balance",
+                  }}
+                >
+                  Every project begins with a conversation about how you want the space to feel.
+                </p>
+                <p
+                  style={{
+                    fontFamily: "var(--font-inter)",
+                    fontWeight: 300,
+                    fontSize: "0.9rem",
+                    lineHeight: 1.7,
+                    color: "var(--hi-ink-muted)",
+                  }}
+                >
+                  Send the form and we&rsquo;ll be in touch to arrange a visit — at the studio or on
+                  site.
+                </p>
               </div>
             </div>
           </Reveal>

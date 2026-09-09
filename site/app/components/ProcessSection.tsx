@@ -1,13 +1,7 @@
 import Reveal from "./Reveal";
-import type { ProcessStep } from "@/lib/db";
+import type { ProcessStep } from "@/lib/types";
 
-export default function ProcessSection({
-  steps,
-  label,
-}: {
-  steps: ProcessStep[];
-  label: string;
-}) {
+export default function ProcessSection({ steps, label }: { steps: ProcessStep[]; label: string }) {
   const sorted = [...steps].sort((a, b) => a.order - b.order);
 
   return (

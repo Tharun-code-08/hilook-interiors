@@ -1,5 +1,5 @@
 import Reveal from "./Reveal";
-import type { AwardItem } from "@/lib/db";
+import type { AwardItem } from "@/lib/types";
 
 const LABELS: Record<AwardItem["kind"], string> = {
   award: "Awards",

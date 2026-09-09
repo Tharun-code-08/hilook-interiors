@@ -1,55 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
-import path from "path";
-import { mkdir, writeFile } from "fs/promises";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"]);
-const MAX_SIZE = 8 * 1024 * 1024; // 8MB
+import { createMedia, listMedia } from "@/lib/repos/operations";
+import { requireSession } from "@/lib/api";
+import { displayFilename, processUpload } from "@/lib/uploads";
+import { putObject } from "@/lib/storage";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function GET() {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = await getDB();
-  return NextResponse.json(db.data.media);
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+  return NextResponse.json(await listMedia());
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
   const formData = await req.formData().catch(() => null);
-  const file = formData?.get("file");
+  if (!formData) {
+    return NextResponse.json({ error: "Expected multipart form data." }, { status: 400 });
+  }
+
+  const file = formData.get("file");
   if (!file || !(file instanceof File)) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  }
-  if (!ALLOWED_TYPES.has(file.type)) {
-    return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
-  }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: "File exceeds 8MB limit" }, { status: 400 });
+    return NextResponse.json({ error: "No file provided." }, { status: 400 });
   }
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  // Magic-byte sniff, SVG refusal, and a full re-encode happen here — the
+  // declared MIME type and the chosen extension are never trusted.
+  const result = await processUpload(file);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
 
-  const ext = path.extname(file.name) || "";
   const id = nanoid();
-  const filename = `${id}${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
+  // Key built entirely from values we generated: a random id plus the
+  // extension of the format we just encoded.
+  const storageKey = `${id}.${result.extension}`;
 
-  const db = await getDB();
-  const media = {
+  try {
+    // Goes to the active storage driver — a bucket in production, .storage/
+    // locally. Never into public/, which is what made the stored-XSS in
+    // finding C2 reachable as same-origin HTML.
+    await putObject(storageKey, result.buffer, result.contentType);
+  } catch (error) {
+    console.error("[hilook] upload storage write failed", error);
+    return NextResponse.json(
+      { error: "Couldn't save that file. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  const media = await createMedia({
     id,
-    filename: file.name,
-    url: `/uploads/${filename}`,
-    kind: "image" as const,
-    uploadedAt: new Date().toISOString(),
-  };
-  db.data.media.unshift(media);
-  await db.write();
+    filename: displayFilename(file.name),
+    storageKey,
+    contentType: result.contentType,
+    width: result.width,
+    height: result.height,
+    bytes: result.bytes,
+  });
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "upload",
+    entity: "media",
+    entityId: id,
+    detail: `${media.filename} → ${result.width}×${result.height} ${result.extension}, ${Math.round(result.bytes / 1024)}KB`,
+    ip: clientIp(req),
+  });
 
   return NextResponse.json(media, { status: 201 });
 }

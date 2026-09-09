@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Service } from "@/lib/db";
+import type { Service } from "@/lib/types";
 import ImagePicker from "../components/ImagePicker";
+import { adminFetch } from "@/lib/admin-client";
+import { useConfirm } from "../components/ConfirmDialog";
+import { jsonBody, useMutation } from "../components/useMutation";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -20,10 +23,12 @@ export default function AdminServicesPage() {
     description: "",
     image: null,
   });
+  const { mutate } = useMutation();
+  const confirm = useConfirm();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/services");
+    const res = await adminFetch("/api/admin/services");
     if (res.ok) setServices((await res.json()).sort((a: Service, b: Service) => a.order - b.order));
     setLoading(false);
   }
@@ -35,33 +40,63 @@ export default function AdminServicesPage() {
   async function addService(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
-    await fetch("/api/admin/services", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    const created = await mutate(
+      "/api/admin/services",
+      { method: "POST", ...jsonBody(form) },
+      { successMessage: "Saved." }
+    );
+    if (!created) return;
     setForm({ name: "", description: "", image: null });
     load();
   }
 
   async function updateService(id: string, patch: Partial<Service>) {
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-    await fetch(`/api/admin/services/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
+    // Snapshot before the optimistic write so a rejected save is undone
+    // rather than left on screen as though it succeeded.
+    const previous = services;
+    await mutate(
+      `/api/admin/services/${id}`,
+      { method: "PUT", ...jsonBody(patch) },
+      {
+        optimistic: () =>
+          setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
+        rollback: () => setServices(previous),
+      }
+    );
   }
 
   async function removeService(id: string) {
-    if (!confirm("Remove this service?")) return;
-    setServices((prev) => prev.filter((s) => s.id !== id));
-    await fetch(`/api/admin/services/${id}`, { method: "DELETE" });
+    const target = services.find((item) => item.id === id);
+    const ok = await confirm({
+      title: `Remove “${target?.name ?? "this item"}”?`,
+      body: "This service will no longer appear on the public site.",
+      confirmLabel: "Remove service",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const previous = services;
+    await mutate(
+      `/api/admin/services/${id}`,
+      { method: "DELETE" },
+      {
+        optimistic: () => setServices((prev) => prev.filter((s) => s.id !== id)),
+        rollback: () => setServices(previous),
+        successMessage: "Service removed.",
+      }
+    );
   }
 
   return (
     <div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: "1.75rem", color: "#26231F" }}>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: "1.6rem",
+          marginBottom: "1.75rem",
+          color: "#26231F",
+        }}
+      >
         Services Management
       </h1>
 
@@ -91,10 +126,21 @@ export default function AdminServicesPage() {
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           style={inputStyle}
         />
-        <ImagePicker label="Service Image" value={form.image} onChange={(url) => setForm({ ...form, image: url })} />
+        <ImagePicker
+          label="Service Image"
+          value={form.image}
+          onChange={(url) => setForm({ ...form, image: url })}
+        />
         <button
           type="submit"
-          style={{ justifySelf: "start", background: "#B08A4A", color: "#fff", border: "none", padding: "0.6rem 1.4rem", fontSize: "0.8rem" }}
+          style={{
+            justifySelf: "start",
+            background: "#B08A4A",
+            color: "#fff",
+            border: "none",
+            padding: "0.6rem 1.4rem",
+            fontSize: "0.8rem",
+          }}
         >
           Add Service
         </button>
@@ -105,17 +151,36 @@ export default function AdminServicesPage() {
       ) : (
         <div style={{ display: "grid", gap: "0.75rem" }}>
           {services.map((s) => (
-            <div key={s.id} style={{ background: "#fff", border: "1px solid rgba(74,63,51,0.16)", padding: "1rem 1.25rem" }}>
+            <div
+              key={s.id}
+              style={{
+                background: "#fff",
+                border: "1px solid rgba(74,63,51,0.16)",
+                padding: "1rem 1.25rem",
+              }}
+            >
               <input
                 value={s.name}
                 onChange={(e) => updateService(s.id, { name: e.target.value })}
-                style={{ ...inputStyle, border: "none", fontWeight: 600, marginBottom: "0.4rem", padding: "0.2rem 0" }}
+                style={{
+                  ...inputStyle,
+                  border: "none",
+                  fontWeight: 600,
+                  marginBottom: "0.4rem",
+                  padding: "0.2rem 0",
+                }}
               />
               <textarea
                 value={s.description}
                 onChange={(e) => updateService(s.id, { description: e.target.value })}
                 rows={2}
-                style={{ ...inputStyle, border: "none", color: "#5E5951", padding: "0.2rem 0", marginBottom: "0.5rem" }}
+                style={{
+                  ...inputStyle,
+                  border: "none",
+                  color: "#5E5951",
+                  padding: "0.2rem 0",
+                  marginBottom: "0.5rem",
+                }}
               />
               <div style={{ marginBottom: "0.75rem" }}>
                 <ImagePicker
@@ -126,7 +191,13 @@ export default function AdminServicesPage() {
               </div>
               <button
                 onClick={() => removeService(s.id)}
-                style={{ background: "transparent", border: "1px solid #5A2630", color: "#5A2630", padding: "0.35rem 0.75rem", fontSize: "0.72rem" }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #5A2630",
+                  color: "#5A2630",
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.72rem",
+                }}
               >
                 Remove
               </button>

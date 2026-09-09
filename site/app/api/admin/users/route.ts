@@ -1,49 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { nanoid } from "nanoid";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { createUser, listUsers } from "@/lib/repos/operations";
+import { requireBody, requireSession } from "@/lib/api";
+import { userCreateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function GET() {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = await getDB();
-  return NextResponse.json(
-    db.data.users.map((u) => ({ id: u.id, username: u.username, role: u.role, createdAt: u.createdAt }))
-  );
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+  // Never includes passwordHash — the repository strips it.
+  return NextResponse.json(await listUsers());
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.role !== "owner") {
-    return NextResponse.json({ error: "Only owners can add admin accounts" }, { status: 403 });
+  const guard = await requireBody(req, userCreateSchema, {
+    role: "owner",
+    forbiddenMessage: "Only owners can add admin accounts",
+  });
+  if (!guard.ok) return guard.response;
+
+  // Uniqueness is enforced by a case-insensitive index, not a prior SELECT —
+  // checking first leaves a window where two concurrent creates both pass.
+  const result = await createUser(guard.data);
+  if (!result.ok) {
+    return NextResponse.json({ error: "That username is already taken" }, { status: 409 });
   }
 
-  const body = await req.json().catch(() => null);
-  const username = body && typeof body.username === "string" ? body.username.trim() : "";
-  const password = body && typeof body.password === "string" ? body.password : "";
-  if (!username || password.length < 8) {
-    return NextResponse.json(
-      { error: "Username is required and password must be at least 8 characters" },
-      { status: 400 }
-    );
-  }
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "create",
+    entity: "user",
+    entityId: result.user.id,
+    detail: `${result.user.username} (${result.user.role})`,
+    ip: clientIp(req),
+  });
 
-  const db = await getDB();
-  if (db.data.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
-    return NextResponse.json({ error: "Username already exists" }, { status: 409 });
-  }
-
-  const user = {
-    id: nanoid(),
-    username,
-    passwordHash: bcrypt.hashSync(password, 10),
-    role: body.role === "editor" ? ("editor" as const) : ("owner" as const),
-    createdAt: new Date().toISOString(),
-  };
-  db.data.users.push(user);
-  await db.write();
-
-  return NextResponse.json({ id: user.id, username: user.username, role: user.role }, { status: 201 });
+  return NextResponse.json(result.user, { status: 201 });
 }

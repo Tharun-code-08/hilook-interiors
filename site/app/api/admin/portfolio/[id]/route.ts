@@ -1,36 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { deleteProject, updateProject } from "@/lib/repos/content";
+import { notFound, requireBody, requireSession } from "@/lib/api";
+import { portfolioUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, portfolioUpdateSchema);
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
+  const updated = await updateProject(id, guard.data);
+  if (!updated) return notFound();
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "update",
+    entity: "project",
+    entityId: id,
+    detail: updated.title,
+    ip: clientIp(req),
+  });
 
-  const db = await getDB();
-  const project = db.data.portfolio.find((p) => p.id === id);
-  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (typeof body.title === "string") project.title = body.title.trim();
-  if (body.category === "Residential" || body.category === "Commercial") project.category = body.category;
-  if (typeof body.description === "string") project.description = body.description.trim();
-  if (Array.isArray(body.images)) project.images = body.images.filter((i: unknown) => typeof i === "string");
-  if (typeof body.order === "number") project.order = body.order;
-
-  await db.write();
-  return NextResponse.json(project);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
-  const db = await getDB();
-  db.data.portfolio = db.data.portfolio.filter((p) => p.id !== id);
-  await db.write();
+  const { id } = await params;
+  // project_images rows go with it via ON DELETE CASCADE.
+  const removed = await deleteProject(id);
+  if (!removed) return notFound();
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "project",
+    entityId: id,
+    detail: removed.title,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }

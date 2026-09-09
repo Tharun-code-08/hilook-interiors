@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PortfolioProject } from "@/lib/db";
+import type { PortfolioProject } from "@/lib/types";
 import MultiImagePicker from "../components/MultiImagePicker";
+import { adminFetch } from "@/lib/admin-client";
+import { useConfirm } from "../components/ConfirmDialog";
+import { jsonBody, useMutation } from "../components/useMutation";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -19,18 +22,28 @@ type PortfolioForm = {
   images: string[];
 };
 
-const emptyForm: PortfolioForm = { title: "", category: "Residential", description: "", images: [] };
+const emptyForm: PortfolioForm = {
+  title: "",
+  category: "Residential",
+  description: "",
+  images: [],
+};
 
 export default function AdminPortfolioPage() {
   const [projects, setProjects] = useState<PortfolioProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<PortfolioForm>(emptyForm);
   const [dragId, setDragId] = useState<string | null>(null);
+  const { mutate } = useMutation();
+  const confirm = useConfirm();
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/portfolio");
-    if (res.ok) setProjects((await res.json()).sort((a: PortfolioProject, b: PortfolioProject) => a.order - b.order));
+    const res = await adminFetch("/api/admin/portfolio");
+    if (res.ok)
+      setProjects(
+        (await res.json()).sort((a: PortfolioProject, b: PortfolioProject) => a.order - b.order)
+      );
     setLoading(false);
   }
 
@@ -41,42 +54,61 @@ export default function AdminPortfolioPage() {
   async function addProject(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    await fetch("/api/admin/portfolio", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        category: form.category,
-        description: form.description,
-        images: form.images,
-      }),
-    });
-    setForm(emptyForm);
-    load();
+    const created = await mutate<PortfolioProject>(
+      "/api/admin/portfolio",
+      { method: "POST", ...jsonBody(form) },
+      { successMessage: `Added “${form.title.trim()}”.` }
+    );
+    if (created) {
+      setForm(emptyForm);
+      load();
+    }
   }
 
   async function updateProject(id: string, patch: Partial<PortfolioProject>) {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-    await fetch(`/api/admin/portfolio/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
+    // Snapshot before the optimistic write, so a rejected save can be undone
+    // rather than leaving the screen showing an edit the server refused.
+    const previous = projects;
+    await mutate(
+      `/api/admin/portfolio/${id}`,
+      { method: "PUT", ...jsonBody(patch) },
+      {
+        optimistic: () =>
+          setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p))),
+        rollback: () => setProjects(previous),
+      }
+    );
   }
 
   async function deleteProject(id: string) {
-    if (!confirm("Delete this project?")) return;
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    await fetch(`/api/admin/portfolio/${id}`, { method: "DELETE" });
+    const project = projects.find((p) => p.id === id);
+    const ok = await confirm({
+      title: `Delete “${project?.title ?? "this project"}”?`,
+      body: "It will be removed from the public site. Uploaded images stay in the Media Library.",
+      confirmLabel: "Delete project",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const previous = projects;
+    await mutate(
+      `/api/admin/portfolio/${id}`,
+      { method: "DELETE" },
+      {
+        optimistic: () => setProjects((prev) => prev.filter((p) => p.id !== id)),
+        rollback: () => setProjects(previous),
+        successMessage: "Project deleted.",
+      }
+    );
   }
 
   async function persistOrder(next: PortfolioProject[]) {
-    setProjects(next);
-    await fetch("/api/admin/portfolio/reorder", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: next.map((p) => p.id) }),
-    });
+    const previous = projects;
+    await mutate(
+      "/api/admin/portfolio/reorder",
+      { method: "PATCH", ...jsonBody({ ids: next.map((p) => p.id) }) },
+      { optimistic: () => setProjects(next), rollback: () => setProjects(previous) }
+    );
   }
 
   function onDrop(targetId: string) {
@@ -93,7 +125,14 @@ export default function AdminPortfolioPage() {
 
   return (
     <div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: "1.75rem", color: "#26231F" }}>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: "1.6rem",
+          marginBottom: "1.75rem",
+          color: "#26231F",
+        }}
+      >
         Portfolio Management
       </h1>
 
@@ -118,7 +157,9 @@ export default function AdminPortfolioPage() {
         />
         <select
           value={form.category}
-          onChange={(e) => setForm({ ...form, category: e.target.value as "Residential" | "Commercial" })}
+          onChange={(e) =>
+            setForm({ ...form, category: e.target.value as "Residential" | "Commercial" })
+          }
           style={inputStyle}
         >
           <option value="Residential">Residential</option>
@@ -138,7 +179,14 @@ export default function AdminPortfolioPage() {
         />
         <button
           type="submit"
-          style={{ justifySelf: "start", background: "#B08A4A", color: "#fff", border: "none", padding: "0.6rem 1.4rem", fontSize: "0.8rem" }}
+          style={{
+            justifySelf: "start",
+            background: "#B08A4A",
+            color: "#fff",
+            border: "none",
+            padding: "0.6rem 1.4rem",
+            fontSize: "0.8rem",
+          }}
         >
           Add Project
         </button>
@@ -178,12 +226,22 @@ export default function AdminPortfolioPage() {
                   <input
                     value={p.title}
                     onChange={(e) => updateProject(p.id, { title: e.target.value })}
-                    style={{ ...inputStyle, border: "none", padding: "0.2rem 0", fontWeight: 600, marginBottom: "0.2rem" }}
+                    style={{
+                      ...inputStyle,
+                      border: "none",
+                      padding: "0.2rem 0",
+                      fontWeight: 600,
+                      marginBottom: "0.2rem",
+                    }}
                   />
                   <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
                     <select
                       value={p.category}
-                      onChange={(e) => updateProject(p.id, { category: e.target.value as "Residential" | "Commercial" })}
+                      onChange={(e) =>
+                        updateProject(p.id, {
+                          category: e.target.value as "Residential" | "Commercial",
+                        })
+                      }
                       style={{ fontSize: "0.75rem" }}
                     >
                       <option value="Residential">Residential</option>
@@ -192,13 +250,24 @@ export default function AdminPortfolioPage() {
                     <input
                       value={p.description}
                       onChange={(e) => updateProject(p.id, { description: e.target.value })}
-                      style={{ ...inputStyle, fontSize: "0.78rem", border: "none", color: "#777168" }}
+                      style={{
+                        ...inputStyle,
+                        fontSize: "0.78rem",
+                        border: "none",
+                        color: "#777168",
+                      }}
                     />
                   </div>
                 </div>
                 <button
                   onClick={() => deleteProject(p.id)}
-                  style={{ background: "transparent", border: "1px solid #5A2630", color: "#5A2630", padding: "0.4rem 0.8rem", fontSize: "0.75rem" }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #5A2630",
+                    color: "#5A2630",
+                    padding: "0.4rem 0.8rem",
+                    fontSize: "0.75rem",
+                  }}
                 >
                   Delete
                 </button>
@@ -210,7 +279,9 @@ export default function AdminPortfolioPage() {
               />
             </div>
           ))}
-          {projects.length === 0 && <p style={{ color: "#777168" }}>No projects yet — add your first one above.</p>}
+          {projects.length === 0 && (
+            <p style={{ color: "#777168" }}>No projects yet — add your first one above.</p>
+          )}
         </div>
       )}
     </div>

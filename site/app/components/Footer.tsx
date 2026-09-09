@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Settings } from "@/lib/db";
+import type { Settings } from "@/lib/types";
 
 const NAV = [
   { href: "#about", label: "About" },
@@ -15,19 +15,39 @@ const NAV = [
 export default function Footer({ settings }: { settings: Settings }) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Honeypot — see ContactSection for the reasoning.
+  const [website, setWebsite] = useState("");
 
   async function onSubscribe(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     try {
-      await fetch("/api/newsletter", {
+      const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, website }),
       });
+
+      if (!res.ok) {
+        // A silently-swallowed failure here means the visitor believes they
+        // subscribed and never hears from the studio again.
+        let message = "Couldn't sign you up just now.";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {
+          /* keep the fallback */
+        }
+        setError(message);
+        return;
+      }
+
       setSent(true);
       setEmail("");
     } catch {
-      // best-effort, no need to surface an error for a footer signup
+      setError("Couldn't reach the server. Please try again.");
     }
   }
 
@@ -54,7 +74,14 @@ export default function Footer({ settings }: { settings: Settings }) {
             >
               {settings.siteName}
             </p>
-            <p style={{ fontFamily: "var(--font-inter)", fontSize: "0.85rem", color: "rgba(244,241,234,0.6)", maxWidth: "36ch" }}>
+            <p
+              style={{
+                fontFamily: "var(--font-inter)",
+                fontSize: "0.85rem",
+                color: "rgba(244,241,234,0.6)",
+                maxWidth: "36ch",
+              }}
+            >
               {settings.footerTagline}
             </p>
           </div>
@@ -66,7 +93,14 @@ export default function Footer({ settings }: { settings: Settings }) {
             <ul style={{ listStyle: "none", display: "grid", gap: "0.6rem" }}>
               {NAV.map((n) => (
                 <li key={n.href}>
-                  <a href={n.href} style={{ fontFamily: "var(--font-inter)", fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}>
+                  <a
+                    href={n.href}
+                    style={{
+                      fontFamily: "var(--font-inter)",
+                      fontSize: "0.85rem",
+                      color: "rgba(244,241,234,0.75)",
+                    }}
+                  >
                     {n.label}
                   </a>
                 </li>
@@ -81,21 +115,36 @@ export default function Footer({ settings }: { settings: Settings }) {
             <ul style={{ listStyle: "none", display: "grid", gap: "0.6rem" }}>
               {settings.instagramUrl && (
                 <li>
-                  <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}>
+                  <a
+                    href={settings.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                  >
                     Instagram
                   </a>
                 </li>
               )}
               {settings.pinterestUrl && (
                 <li>
-                  <a href={settings.pinterestUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}>
+                  <a
+                    href={settings.pinterestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                  >
                     Pinterest
                   </a>
                 </li>
               )}
               {settings.facebookUrl && (
                 <li>
-                  <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}>
+                  <a
+                    href={settings.facebookUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                  >
                     Facebook
                   </a>
                 </li>
@@ -112,10 +161,35 @@ export default function Footer({ settings }: { settings: Settings }) {
                 Thank you for subscribing.
               </p>
             ) : (
-              <form onSubmit={onSubscribe} style={{ display: "flex", gap: "0.5rem" }}>
+              <form
+                onSubmit={onSubscribe}
+                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+              >
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "-9999px",
+                    width: 1,
+                    height: 1,
+                    overflow: "hidden",
+                  }}
+                >
+                  <label htmlFor="hi-newsletter-website">Website (leave this blank)</label>
+                  <input
+                    id="hi-newsletter-website"
+                    name="website"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                  />
+                </div>
                 <input
                   required
                   type="email"
+                  aria-label="Email address"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -133,8 +207,11 @@ export default function Footer({ settings }: { settings: Settings }) {
                 <button
                   type="submit"
                   style={{
-                    background: "#B08A4A",
-                    color: "#F8F2E8",
+                    // --hi-accent is decoration-only (2.87:1 under this text).
+                    // Text-bearing fills use --hi-accent-strong; see the token
+                    // note in globals.css.
+                    background: "var(--hi-accent-strong)",
+                    color: "var(--hi-on-dark)",
                     border: "none",
                     padding: "0.6rem 1rem",
                     fontFamily: "var(--font-inter)",
@@ -145,6 +222,19 @@ export default function Footer({ settings }: { settings: Settings }) {
                 >
                   Join
                 </button>
+                {error && (
+                  <p
+                    role="alert"
+                    style={{
+                      width: "100%",
+                      fontSize: "0.78rem",
+                      color: "#D98B7F",
+                      marginTop: "0.15rem",
+                    }}
+                  >
+                    {error}
+                  </p>
+                )}
               </form>
             )}
           </div>
@@ -154,7 +244,9 @@ export default function Footer({ settings }: { settings: Settings }) {
           style={{
             fontFamily: "var(--font-inter)",
             fontSize: "0.75rem",
-            color: "rgba(244,241,234,0.45)",
+            // 0.45 composited to 3.97:1 on the footer ground, under AA for
+            // 12px text. 0.62 measures 6.22:1 and still reads as recessive.
+            color: "rgba(244,241,234,0.62)",
             paddingTop: "1.75rem",
             textAlign: "center",
           }}

@@ -4,22 +4,70 @@ A cinematic, single-page luxury interior-design website with a canvas-scrubbed
 scroll hero, a full public site, and an admin panel with a lightweight
 file-based database.
 
-## ⚠️ Before you do anything else
-
-This project was built in a sandbox whose network policy blocked
-`registry.npmjs.org`, so **`npm install` was never actually run against this
-code**, and neither was `npm run dev` / `tsc --noEmit`. Every file was
-written carefully by hand and passed a TypeScript syntax check, but you are
-the first real compile. Run the steps below and fix anything that surfaces —
-it should be close to nothing, but don't skip this.
+## Getting started
 
 ```bash
 npm install
-npx tsc --noEmit
-npm run dev
+cp .env.example .env.local     # optional for local dev; required for deploy
+npm run dev                     # migrates the database, then starts Next
 ```
 
-Then open http://localhost:3000.
+`npm run dev` runs the frame manifest generator and `db:migrate` first, so a
+clean clone comes up with a working schema and no manual steps.
+
+### Migrating from the old JSON store
+
+Earlier versions kept everything in `data/db.json` via lowdb. If you have one
+of those, import it once:
+
+```bash
+npm run db:migrate    # create the schema
+npm run db:import     # copy db.json into it
+```
+
+The import is idempotent (keyed by primary key) and never deletes anything it
+didn't write. It leaves `db.json` in place — keep it until you've confirmed
+the site reads correctly from SQL, then delete it.
+
+Two notes on what the import can and can't carry over:
+
+- Project images become rows in `project_images`, so each one now has its own
+  order and alt text.
+- The old analytics were running totals with no timestamps. Daily visit counts
+  are replayed as dated pageviews; section and referrer totals genuinely
+  cannot be dated, so they are not imported and the log starts clean.
+
+## Database
+
+SQLite through libSQL, with Drizzle for the schema and queries.
+
+- **Local / VPS** — `TURSO_DATABASE_URL` unset, so it opens `data/hilook.db`
+  as a file. No account, no network.
+- **Serverless** — set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` and the
+  same driver talks to [Turso](https://turso.tech) over HTTP.
+
+```bash
+npm run db:generate   # regenerate SQL migrations after editing lib/schema.ts
+npm run db:migrate    # apply pending migrations
+npm run db:studio     # browse the data
+```
+
+Route handlers never touch the database directly — everything goes through
+`lib/repos/`. That boundary is where transactions live, and it's what makes
+concurrent admin saves safe.
+
+## Deploying
+
+The app writes nothing to the filesystem at runtime once these are set:
+
+| Variable                                  | Why                                                                                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                          | Without it the app would write a generated secret to disk. Required in production — it throws rather than falling back. |
+| `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` | Otherwise the database is a local file.                                                                                 |
+| `BLOB_READ_WRITE_TOKEN`                   | Otherwise uploads go to `.storage/` on local disk. Needs `npm install @vercel/blob`.                                    |
+| `NEXT_PUBLIC_SITE_URL`                    | Absolute URLs for canonicals, sitemap, and Open Graph.                                                                  |
+
+Run `npm run db:migrate` as a deploy step, before the app starts.
 
 ## The hero video
 
@@ -28,8 +76,14 @@ shipped with a locally-generated abstract placeholder. That's since been
 replaced with a real AI-generated cinematic house flythrough you provided
 directly (exterior night approach → interior flythrough → exterior reveal),
 run through the same ffmpeg extraction pipeline: `fps=24, scale=1920:-1`,
-141 frames (`frame_0001.jpg` .. `frame_0141.jpg`), `FRAME_COUNT = 141` in
-`app/components/ScrollHero.tsx`. Source is 1376×768, upscaled to 1920 wide
+141 frames (`frame_0001.jpg` .. `frame_0141.jpg`), so `FRAME_COUNT = 141`.
+
+The placeholder extraction was 360 frames, and replacing it only overwrote
+the first 141 — `frame_0142.jpg` .. `frame_0360.jpg` are still on disk as
+leftovers from it. They are not served (see step 3 below) and
+`node scripts/prune-stale-frames.mjs --apply` removes them.
+
+Source is 1376×768, upscaled to 1920 wide
 with Lanczos filtering during extraction — the canvas draw logic doesn't
 care about the exact resolution (it cover-fits from each image's natural
 size), but a higher-resolution source would look sharper on large displays
@@ -52,21 +106,38 @@ To swap in a different or longer video later:
    ffmpeg -i public/hero.mp4 -vf "fps=24,scale=1920:-1" -q:v 3 "public/frames/frame_%04d.jpg"
    ls public/frames/*.jpg | wc -l   # this is your new FRAME_COUNT
    ```
-3. Update `FRAME_COUNT` at the top of `app/components/ScrollHero.tsx` to the
-   **exact** number counted above — don't trust `ffprobe`'s `nb_frames`,
-   count the files on disk.
+3. Nothing to update by hand. `FRAME_COUNT` is generated into
+   `lib/frames.generated.ts` on every `predev` / `prebuild` by
+   `scripts/generate-frame-manifest.mjs`, which reads the frame count out
+   of `public/hero.mp4` itself (the MP4 `stsz` sample count — no ffmpeg
+   needed) and checks `public/frames` against it.
+
+   Deliberately the video and **not** the file count: a shorter video replacing
+   a longer one overwrites `frame_0001..N` and leaves the old frames above
+   `N` behind, and counting those puts dead footage into the scrub. If the
+   directory has more frames than the video, the generator says so and ignores
+   the extras; `node scripts/prune-stale-frames.mjs` (add `--apply`) deletes
+   them. Fewer frames than the video is a failed extraction and fails the build.
 
 ## Admin panel
 
 Visit `/admin/login`.
 
-- **Username:** `admin`
-- **Password:** `HilookAdmin!2026`
+**On a fresh install** (an empty database) the app creates an owner account
+called `admin` and prints a randomly generated password to the server log once,
+on the run that seeds it. Watch the terminal on first `npm run dev`.
+To choose the password yourself instead, set `ADMIN_INITIAL_PASSWORD` before
+that first run.
 
-**Change this password immediately** (Admin Users page — sign in, then add
-a new owner account with your own credentials and remove the default one),
-or better, set a real `SESSION_SECRET` env var and edit the seed hash in
-`lib/db.ts` before your first deploy.
+Either way the account is flagged `mustChangePassword`, so the first sign-in is
+forced through the change-password screen at `/admin/password` before the panel
+is usable. No credential is committed to this repository.
+
+> **Upgrading an existing install:** stores created before this change still
+> hold the old seeded `admin` account. It has been flagged for rotation, so the
+> next sign-in will require a new password. Change it immediately — the previous
+> value was published in this README and in `lib/db.ts`, and should be treated
+> as compromised.
 
 What's in the admin panel:
 
@@ -88,31 +159,68 @@ What's in the admin panel:
 - **Admin Users** — owners can add/remove admin accounts with `owner` or
   `editor` roles.
 
-All of this is backed by a single JSON file at `data/db.json` (via
-[lowdb](https://github.com/typicode/lowdb)) rather than a full SQL database —
-this was a deliberate scope call given the sandbox couldn't install or test
-a native database driver. It's genuinely functional (real reads/writes,
-real auth, real file uploads) but if you outgrow a single-file datastore,
-the `lib/db.ts` module is the one place to swap in Postgres/SQLite/etc —
-every route already goes through `getDB()`.
+All of this is backed by the SQL store described under **Database** above.
+Every mutation goes through `lib/repos/`, so a change of engine is a change to
+`lib/client.ts` and the repositories, not to any route or component.
 
 ## What's simplified vs. a fully custom build
 
-- **Database:** JSON file (lowdb) instead of a hosted SQL/NoSQL database —
-  see above.
-- **Auth:** a signed JWT in an httpOnly cookie, checked per-request. No
-  password reset flow, no 2FA, no audit log.
+- **Database:** SQLite via libSQL. Real transactions, indexes, and foreign
+  keys; runs as a local file or against Turso with no code change.
+- **Auth:** a signed JWT in an httpOnly cookie, checked per-request. Admin
+  mutations are recorded to an audit log (`lib/audit.ts`). No password reset
+  flow and no 2FA.
 - **Roles:** two roles (`owner`, `editor`). Owners can manage admin
   accounts; both can manage content. There isn't granular per-resource
   permissioning beyond that.
-- **Analytics:** first-party, in-process counters (page views, section
-  views, referrer hostnames). No geolocation, device/browser breakdown, or
-  historical time-series — just running totals.
-- **Newsletter signup:** stores emails in the same JSON store; there's no
+- **Analytics:** first-party append-only event log. Unique visitors (via a
+  daily-salted hash — no IP is stored), device and browser class, referrer
+  hosts, and per-day aggregation. No external tracker.
+- **Newsletter signup:** stores emails in the same SQL store; there's no
   outbound email sending wired up.
 
 None of this affects the public-facing site's design, copy rules, or the
 scroll hero mechanics — those follow the spec exactly.
+
+## Quality gates
+
+```bash
+npm run verify      # typecheck + lint + unit and integration tests
+npm run test:e2e    # Playwright + axe, against a production build
+npm run lhci        # Lighthouse budgets and audits
+```
+
+All three run in CI (`.github/workflows/ci.yml`) on every pull request.
+
+**Lighthouse** (`lighthouserc.js`) builds and starts its own production
+server on port 3101 with a throwaway database, so it needs no deployment and
+no hosted URL. It asserts byte budgets and the accessibility, SEO and
+best-practices scores as errors; the performance _score_ is only a warning,
+because it is a timing measured on a shared runner and gating merges on it
+produces a flaky check people learn to ignore.
+
+The budgets are measured, not aspirational — currently 166KB of script and
+10.8MB of images on `/`. That image figure is the hero: 141 frames at
+`w1920`, all of which land during the idle backfill. The budget sits at 13MB
+as a **regression tripwire**, not a target — it is what catches the frame set
+being padded out again or the WebP quality being raised. If the hero is ever
+made lighter, lower the budget in the same commit.
+
+Two SEO audits (`meta-description`, `canonical`) are warnings rather than
+errors. `generateMetadata` in `app/layout.tsx` is async and reads settings
+from the database, so Next cannot resolve metadata before flushing the
+streamed shell: title, description and canonical are emitted into `<body>`
+rather than `<head>`. The tags are present and correct — the Playwright suite
+asserts them, since it searches the whole document — but Lighthouse only
+credits them in the head. Making these pass means making the metadata static
+and giving up admin-editable SEO copy, which is a product decision rather than
+a lint fix.
+
+On Windows, `npm run lhci` frequently ends with `EPERM ... Templighthouse.*`
+after the audit has already finished. That is chrome-launcher racing its own
+temp-directory cleanup; the reports in `.lighthouseci/` are complete, and
+`npx lhci assert` re-checks them without re-running Chrome. CI runs on ubuntu
+and is unaffected.
 
 ## Structure
 
@@ -121,20 +229,26 @@ app/
   components/        Public site sections + ScrollHero
   admin/
     login/            Public login page
-    (dashboard)/       Auth-gated admin pages (layout redirects to /admin/login)
+    (dashboard)/      Auth-gated admin pages
   api/
-    admin/             Admin CRUD routes (all check the session cookie)
-    contact/, newsletter/, analytics/section/   Public-facing routes
+    admin/            Admin CRUD (session + CSRF checked)
+    media/[key]/      Serves uploaded media from the storage driver
+    contact/, newsletter/, analytics/section/   Public endpoints
 lib/
-  db.ts                lowdb schema + seed data
-  auth.ts              JWT session helpers
-  analytics.ts         First-party analytics writers
+  schema.ts           Drizzle table definitions
+  client.ts           libSQL connection (local file or Turso)
+  repos/              Repository layer — the only place that queries
+  storage.ts          Media storage: local disk or object storage
+  validation.ts       Zod schemas, shared by API and admin forms
+  auth.ts             JWT session helpers
+  rate-limit.ts       Shared fixed-window limiter
+drizzle/              Generated SQL migrations (committed)
+scripts/              Frame manifest, frame encoding, migrate, import
 public/
-  frames/              Extracted hero video frames (see "The hero video" above)
-  hero.mp4             Hero source video (used only for frame extraction — not played as <video>)
-  uploads/             Admin-uploaded media (git-ignored)
+  frames/             Hero frames — source JPEGs plus w960/ and w1920/ WebP
 data/
-  db.json              Runtime data store (git-ignored, created on first run)
+  hilook.db           Local SQL store (git-ignored)
+.storage/             Local media uploads (git-ignored)
 ```
 
 ## No invented brand content

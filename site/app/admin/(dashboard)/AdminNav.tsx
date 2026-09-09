@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { adminFetch } from "@/lib/admin-client";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard" },
@@ -14,14 +15,23 @@ const LINKS = [
   { href: "/admin/awards", label: "Awards & Press" },
   { href: "/admin/media", label: "Media Library" },
   { href: "/admin/users", label: "Admin Users" },
+  { href: "/admin/password", label: "Change Password" },
 ];
 
-export default function AdminNav({ username, role }: { username: string; role: string }) {
+export default function AdminNav({
+  username,
+  role,
+  mustChangePassword,
+}: {
+  username: string;
+  role: string;
+  mustChangePassword?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
   async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
+    await adminFetch("/api/admin/logout", { method: "POST" });
     router.push("/admin/login");
     router.refresh();
   }
@@ -50,7 +60,10 @@ export default function AdminNav({ username, role }: { username: string; role: s
         Admin panel
       </p>
 
-      <ul className="hi-admin-nav-links" style={{ listStyle: "none", display: "grid", gap: "0.35rem", flex: 1 }}>
+      <ul
+        className="hi-admin-nav-links"
+        style={{ listStyle: "none", display: "grid", gap: "0.35rem", flex: 1 }}
+      >
         {LINKS.map((link) => {
           const active = pathname === link.href;
           return (
@@ -58,7 +71,9 @@ export default function AdminNav({ username, role }: { username: string; role: s
               <Link
                 href={link.href}
                 style={{
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                   padding: "0.55rem 0.7rem",
                   fontSize: "0.85rem",
                   borderRadius: 3,
@@ -68,15 +83,38 @@ export default function AdminNav({ username, role }: { username: string; role: s
                 }}
               >
                 {link.label}
+                {/* Marks the one item the operator has to act on before the
+                    panel is safe to use. */}
+                {link.href === "/admin/password" && mustChangePassword && (
+                  <span
+                    aria-label="Action required"
+                    title="You're still using the password this account was created with"
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: active ? "#5A2630" : "#D98B7F",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </Link>
             </li>
           );
         })}
       </ul>
 
-      <div style={{ borderTop: "1px solid rgba(244,241,234,0.14)", paddingTop: "1rem", marginTop: "1rem" }}>
+      <div
+        style={{
+          borderTop: "1px solid rgba(244,241,234,0.14)",
+          paddingTop: "1rem",
+          marginTop: "1rem",
+        }}
+      >
         <p style={{ fontSize: "0.75rem", color: "rgba(244,241,234,0.65)" }}>{username}</p>
-        <p style={{ fontSize: "0.7rem", color: "rgba(244,241,234,0.4)", marginBottom: "0.9rem" }}>{role}</p>
+        <p style={{ fontSize: "0.7rem", color: "rgba(244,241,234,0.4)", marginBottom: "0.9rem" }}>
+          {role}
+        </p>
         <button
           onClick={logout}
           style={{
@@ -92,7 +130,12 @@ export default function AdminNav({ username, role }: { username: string; role: s
         </button>
         <Link
           href="/"
-          style={{ display: "block", marginTop: "0.75rem", fontSize: "0.75rem", color: "rgba(244,241,234,0.5)" }}
+          style={{
+            display: "block",
+            marginTop: "0.75rem",
+            fontSize: "0.75rem",
+            color: "rgba(244,241,234,0.5)",
+          }}
         >
           ← View site
         </Link>

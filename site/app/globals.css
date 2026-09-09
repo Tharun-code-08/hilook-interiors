@@ -1,3 +1,64 @@
+/* ==========================================================================
+   Design tokens
+   --------------------------------------------------------------------------
+   The palette was previously repeated as literal hex strings across roughly a
+   hundred inline style objects (finding M5), so a brand change meant a
+   find-and-replace through every component and hover/focus states were mostly
+   missing because inline styles cannot express them.
+
+   These values are the ones already in use, named — adopting them changes
+   nothing visually. Components are migrated to them incrementally.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --hi-surface: #f4f1ea;
+  --hi-surface-alt: #efeae0;
+  --hi-surface-raised: #ffffff;
+  --hi-surface-dark: #26231f;
+
+  /* Ink */
+  --hi-ink: #26231f;
+  --hi-ink-muted: #5e5951;
+  --hi-ink-soft: #6b6559;
+  --hi-ink-faint: #a6a093;
+  --hi-on-dark: #f8f2e8;
+
+  /* Accent — three tokens, because one value cannot serve all three roles.
+     Measured with axe, not estimated:
+
+     --hi-accent        #B08A4A  Decoration only: rules, dots, borders, and
+                                 large display type. Nothing small sits on it.
+                                 An earlier revision used this as the button
+                                 fill and claimed 4.6:1 against --hi-on-dark;
+                                 the real figure is 2.86:1, which fails AA.
+     --hi-accent-strong #8A6A33  Fills that carry text. Against --hi-on-dark
+                                 this measures 4.50:1 (hover goes darker, never lighter).
+     --hi-accent-text   #846430  Small text on --hi-surface, where the lighter
+                                 gold reaches only ~2.9:1. This is the role the
+                                 two tokens diverge on: #8A6A33 measures
+                                 4.443:1 here — under AA, not over, though the
+                                 original note rounded it to a pass. #846430
+                                 measures 4.84:1 and is visually the same gold. */
+  --hi-accent: #b08a4a;
+  --hi-accent-strong: #8a6a33;
+  --hi-accent-lift: #75592b;
+  --hi-accent-text: #846430;
+
+  /* Semantic */
+  --hi-forest: #173f35;
+  --hi-danger: #5a2630;
+
+  /* Lines */
+  --hi-rule: rgba(74, 63, 51, 0.16);
+  --hi-rule-strong: rgba(74, 63, 51, 0.28);
+
+  /* Motion */
+  --hi-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --hi-dur-fast: 0.2s;
+  --hi-dur: 0.35s;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -9,8 +70,8 @@ html {
 }
 
 body {
-  background: #f4f1ea;
-  color: #26231f;
+  background: var(--hi-surface);
+  color: var(--hi-ink);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -30,16 +91,58 @@ a {
 }
 
 ::selection {
-  background: #b08a4a;
-  color: #f8f2e8;
+  background: var(--hi-accent);
+  color: var(--hi-on-dark);
 }
 
+/* --------------------------------------------------------------------------
+   Focus
+   --------------------------------------------------------------------------
+   There was no visible focus style anywhere, so the site could not be
+   operated by keyboard with any confidence. :focus-visible keeps it off for
+   mouse users while guaranteeing it for keyboard ones.
+   -------------------------------------------------------------------------- */
+
+:focus-visible,
+.hi-focusable:focus-visible {
+  outline: 2px solid var(--hi-accent-text);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+
+/* Skip link — the first tab stop on the page, so a keyboard user can get past
+   the 500vh hero without scrubbing through it. */
+.hi-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  background: var(--hi-surface-dark);
+  color: var(--hi-on-dark);
+  padding: 0.85rem 1.4rem;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.hi-skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Primitives
+   -------------------------------------------------------------------------- */
+
 .hi-label {
-  font-family: var(--font-inter);
+  font-family: var(--font-inter), system-ui, sans-serif;
   font-size: 0.65rem;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: #b08a4a;
+  /* Was --hi-accent (#B08A4A) at ~2.9:1 on the cream ground. */
+  color: var(--hi-accent-text);
   font-weight: 500;
 }
 
@@ -51,10 +154,13 @@ a {
 }
 
 .hi-cta {
-  display: inline-block;
-  background: #b08a4a;
-  color: #f8f2e8;
-  font-family: var(--font-inter);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  background: var(--hi-accent-strong);
+  color: var(--hi-on-dark);
+  font-family: var(--font-inter), system-ui, sans-serif;
   font-weight: 500;
   font-size: 0.7rem;
   letter-spacing: 0.18em;
@@ -63,36 +169,213 @@ a {
   border: none;
   border-radius: 2px;
   text-decoration: none;
-  transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background var(--hi-dur) var(--hi-ease),
+    transform var(--hi-dur) var(--hi-ease);
 }
 
 .hi-cta:hover {
-  background: #c5a45e;
+  background: var(--hi-accent-lift);
+}
+
+.hi-cta:active {
+  transform: translateY(1px);
+}
+
+.hi-cta:disabled {
+  background: var(--hi-ink-faint);
+  cursor: not-allowed;
 }
 
 .hi-cta-outline {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   background: transparent;
-  color: #26231f;
-  font-family: var(--font-inter);
+  color: var(--hi-ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
   font-weight: 500;
   font-size: 0.7rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   padding: 0.85rem 2.4rem;
-  border: 1px solid rgba(74, 63, 51, 0.32);
+  border: 1px solid var(--hi-rule-strong);
   border-radius: 2px;
   text-decoration: none;
-  transition: border-color 0.35s ease, color 0.35s ease;
+  transition:
+    border-color var(--hi-dur) var(--hi-ease),
+    color var(--hi-dur) var(--hi-ease);
 }
 
 .hi-cta-outline:hover {
-  border-color: #b08a4a;
-  color: #b08a4a;
+  border-color: var(--hi-accent);
+  color: var(--hi-accent-text);
+}
+
+/* --------------------------------------------------------------------------
+   Portfolio cards
+   -------------------------------------------------------------------------- */
+
+.hi-project-image {
+  transition: transform 0.7s var(--hi-ease);
+}
+
+.hi-project-card:hover .hi-project-image,
+.hi-project-card:focus-visible .hi-project-image {
+  transform: scale(1.04);
+}
+
+.hi-project-card h3 {
+  transition: color var(--hi-dur) var(--hi-ease);
+}
+
+.hi-project-card:hover h3 {
+  color: var(--hi-accent-text);
+}
+
+/* Loading fallback pulse (app/loading.tsx). */
+@keyframes hi-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 768px) {
   .hi-container {
     padding: 0 1.25rem;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Site header (app/components/SiteHeader.tsx)
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 880px) {
+  .hi-header-nav,
+  .hi-header-cta {
+    display: none !important;
+  }
+
+  .hi-menu-toggle {
+    display: flex !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Project pages (/work, /work/[slug])
+   -------------------------------------------------------------------------- */
+
+.hi-project-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: clamp(1.5rem, 3vw, 2.25rem);
+  margin: 0;
+}
+
+/* The card is an anchor now, not a button: a real link is crawlable, opens in
+   a new tab, and works without JavaScript. The home grid used to open a modal,
+   which meant projects had no address to link to at all. */
+a.hi-project-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.hi-project-body {
+  display: grid;
+  gap: clamp(2rem, 5vw, 3.5rem);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .hi-project-body {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.7fr);
+  }
+}
+
+.hi-project-meta {
+  display: grid;
+  gap: 1.25rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--hi-rule);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.92rem;
+}
+
+@media (min-width: 900px) {
+  .hi-project-meta {
+    padding-top: 0;
+    border-top: none;
+    border-left: 1px solid var(--hi-rule);
+    padding-left: clamp(1.25rem, 3vw, 2.5rem);
+  }
+}
+
+.hi-gallery-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  margin: 0;
+}
+
+.hi-gallery-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  background: var(--hi-surface-alt);
+  cursor: zoom-in;
+}
+
+.hi-gallery-item img {
+  transition: transform 0.7s var(--hi-ease);
+}
+
+.hi-gallery-item:hover img,
+.hi-gallery-item:focus-visible img {
+  transform: scale(1.03);
+}
+
+.hi-lightbox-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20, 16, 12, 0.72);
+  color: var(--hi-on-dark);
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--hi-dur) var(--hi-ease);
+}
+
+.hi-lightbox-btn:hover {
+  background: rgba(20, 16, 12, 0.92);
 }

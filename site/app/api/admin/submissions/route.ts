@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { listSubmissions } from "@/lib/repos/operations";
+import { requireSession } from "@/lib/api";
 
 export async function GET() {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = await getDB();
-  return NextResponse.json(db.data.submissions);
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+  return NextResponse.json(await listSubmissions());
 }

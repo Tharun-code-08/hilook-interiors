@@ -1,34 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { nanoid } from "nanoid";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { createProject, listProjects } from "@/lib/repos/content";
+import { requireBody, requireSession } from "@/lib/api";
+import { portfolioCreateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function GET() {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const db = await getDB();
-  return NextResponse.json(db.data.portfolio);
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
+  return NextResponse.json(await listProjects());
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, portfolioCreateSchema);
+  if (!guard.ok) return guard.response;
 
-  const body = await req.json().catch(() => null);
-  if (!body || typeof body.title !== "string" || !body.title.trim()) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 });
-  }
+  // The project row and its image rows go in one transaction — see
+  // lib/repos/content.ts.
+  const created = await createProject(guard.data);
 
-  const db = await getDB();
-  const project = {
-    id: nanoid(),
-    title: body.title.trim(),
-    category: body.category === "Commercial" ? ("Commercial" as const) : ("Residential" as const),
-    description: typeof body.description === "string" ? body.description.trim() : "",
-    images: Array.isArray(body.images) ? body.images.filter((i: unknown) => typeof i === "string") : [],
-    order: db.data.portfolio.length,
-  };
-  db.data.portfolio.push(project);
-  await db.write();
-  return NextResponse.json(project, { status: 201 });
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "create",
+    entity: "project",
+    entityId: created.id,
+    detail: `${created.title} (${created.images.length} images)`,
+    ip: clientIp(req),
+  });
+
+  return NextResponse.json(created, { status: 201 });
 }

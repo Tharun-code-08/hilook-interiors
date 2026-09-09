@@ -1,0 +1,22 @@
+# Line endings are normalised to LF in the repository and checked out native.
+#
+# This machine has core.autocrlf=true, so it already behaves this way — but
+# that is a local setting, and CI runs on ubuntu. Recording the intent here
+# means a checkout produces the same bytes regardless of who cloned it, rather
+# than depending on each contributor's git config.
+* text=auto
+
+# Binary assets: never touched, never diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.mp4 binary
+*.woff  binary
+*.woff2 binary
+*.ico binary
+
+# Generated: keep it out of review diffs, but still versioned.
+site/package-lock.json linguist-generated=true
+site/lib/frames.generated.ts linguist-generated=true

@@ -1,37 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { updateReview, deleteReview } from "@/lib/repos/content";
+import { notFound, requireBody, requireSession } from "@/lib/api";
+import { reviewUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, reviewUpdateSchema);
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
+  const updated = await updateReview(id, guard.data);
+  if (!updated) return notFound();
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "update",
+    entity: "review",
+    entityId: id,
+    detail: updated.name,
+    ip: clientIp(req),
+  });
 
-  const db = await getDB();
-  const review = db.data.reviews.find((r) => r.id === id);
-  if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (typeof body.name === "string") review.name = body.name.trim();
-  if (typeof body.text === "string") review.text = body.text.trim();
-  if (typeof body.photo === "string" || body.photo === null) review.photo = body.photo;
-  if (typeof body.rating === "number") review.rating = Math.min(5, Math.max(1, body.rating));
-  if (typeof body.approved === "boolean") review.approved = body.approved;
-  if (typeof body.featured === "boolean") review.featured = body.featured;
-
-  await db.write();
-  return NextResponse.json(review);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
-  const db = await getDB();
-  db.data.reviews = db.data.reviews.filter((r) => r.id !== id);
-  await db.write();
+  const { id } = await params;
+  const removed = await deleteReview(id);
+  if (!removed) return notFound();
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "review",
+    entityId: id,
+    detail: removed.name,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }

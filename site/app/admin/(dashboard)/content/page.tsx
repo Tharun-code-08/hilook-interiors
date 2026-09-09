@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Settings } from "@/lib/db";
+import type { Settings } from "@/lib/types";
 import ImagePicker from "../components/ImagePicker";
+import { adminFetch } from "@/lib/admin-client";
+import { jsonBody, useMutation } from "../components/useMutation";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -107,9 +109,10 @@ export default function AdminContentPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { mutate } = useMutation();
 
   useEffect(() => {
-    fetch("/api/admin/settings")
+    adminFetch("/api/admin/settings")
       .then((r) => r.json())
       .then(setSettings);
   }, []);
@@ -119,20 +122,36 @@ export default function AdminContentPage() {
     if (!settings) return;
     setSaving(true);
     setSaved(false);
-    await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
+
+    // This one previously set `saved` unconditionally — a rejected save (an
+    // invalid GA id, a malformed social URL) still showed "Saved", and the
+    // operator had no way to know the copy on the live site hadn't changed.
+    const result = await mutate<Settings>(
+      "/api/admin/settings",
+      { method: "PUT", ...jsonBody(settings) },
+      { successMessage: "Content saved." }
+    );
+
     setSaving(false);
-    setSaved(true);
+    if (result) {
+      // Adopt the server's canonical version rather than assuming ours won.
+      setSettings(result);
+      setSaved(true);
+    }
   }
 
   if (!settings) return <p style={{ color: "#777168" }}>Loading…</p>;
 
   return (
     <div>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: "1.6rem", marginBottom: "0.5rem", color: "#26231F" }}>
+      <h1
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: "1.6rem",
+          marginBottom: "0.5rem",
+          color: "#26231F",
+        }}
+      >
         Content Editor
       </h1>
       <p style={{ fontSize: "0.82rem", color: "#777168", marginBottom: "2rem", maxWidth: "60ch" }}>
@@ -142,16 +161,32 @@ export default function AdminContentPage() {
       <form onSubmit={save} style={{ display: "grid", gap: "2.25rem", maxWidth: 640 }}>
         {GROUPS.map((group) => (
           <div key={group.title}>
-            <h2 style={{ fontFamily: "Georgia, serif", fontSize: "1.05rem", color: "#26231F", marginBottom: "0.3rem" }}>
+            <h2
+              style={{
+                fontFamily: "Georgia, serif",
+                fontSize: "1.05rem",
+                color: "#26231F",
+                marginBottom: "0.3rem",
+              }}
+            >
               {group.title}
             </h2>
             {group.description && (
-              <p style={{ fontSize: "0.78rem", color: "#777168", marginBottom: "0.9rem" }}>{group.description}</p>
+              <p style={{ fontSize: "0.78rem", color: "#777168", marginBottom: "0.9rem" }}>
+                {group.description}
+              </p>
             )}
             <div style={{ display: "grid", gap: "1.1rem" }}>
               {group.fields.map((field) => (
                 <div key={field.key}>
-                  <label style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.35rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.75rem",
+                      color: "#5E5951",
+                      marginBottom: "0.35rem",
+                    }}
+                  >
                     {field.label}
                   </label>
                   {field.area ? (
@@ -184,7 +219,14 @@ export default function AdminContentPage() {
         <button
           type="submit"
           disabled={saving}
-          style={{ justifySelf: "start", background: "#B08A4A", color: "#fff", border: "none", padding: "0.7rem 1.6rem", fontSize: "0.8rem" }}
+          style={{
+            justifySelf: "start",
+            background: "#B08A4A",
+            color: "#fff",
+            border: "none",
+            padding: "0.7rem 1.6rem",
+            fontSize: "0.8rem",
+          }}
         >
           {saving ? "Saving…" : "Save Changes"}
         </button>

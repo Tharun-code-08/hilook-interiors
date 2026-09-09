@@ -1,5 +1,8 @@
 node_modules
 .next
+# Alternate build dirs (NEXT_DIST_DIR): audit and e2e builds, so they never
+# race a running dev server for .next.
+.next-*
 out
 .env*.local
 *.tsbuildinfo
@@ -8,3 +11,20 @@ data/db.json
 data/db.json.backup-*.json
 data/.session-secret
 public/uploads
+
+# SQL store (local dev). Production uses Turso.
+data/hilook.db
+data/hilook.db-*
+
+# Local media storage driver. Production uses object storage.
+.storage
+
+# Test artifacts
+data/e2e.db
+data/e2e.db-*
+data/lighthouse-e2e.db
+data/lighthouse-e2e.db-*
+playwright-report
+.lighthouseci
+test-results
+coverage

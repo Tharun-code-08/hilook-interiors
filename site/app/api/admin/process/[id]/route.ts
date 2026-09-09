@@ -1,34 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDB } from "@/lib/db";
-import { getSessionUser } from "@/lib/auth";
+import { updateProcessStep, deleteProcessStep } from "@/lib/repos/content";
+import { notFound, requireBody, requireSession } from "@/lib/api";
+import { processUpdateSchema } from "@/lib/validation";
+import { tryRecordAudit } from "@/lib/audit";
+import { clientIp } from "@/lib/request";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireBody(req, processUpdateSchema);
+  if (!guard.ok) return guard.response;
+
   const { id } = await params;
+  const updated = await updateProcessStep(id, guard.data);
+  if (!updated) return notFound();
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "update",
+    entity: "process-step",
+    entityId: id,
+    detail: updated.title,
+    ip: clientIp(req),
+  });
 
-  const db = await getDB();
-  const step = db.data.processSteps.find((s) => s.id === id);
-  if (!step) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (typeof body.title === "string") step.title = body.title.trim();
-  if (typeof body.body === "string") step.body = body.body.trim();
-  if (typeof body.order === "number") step.order = body.order;
-
-  await db.write();
-  return NextResponse.json(step);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSessionUser();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { id } = await params;
+  const guard = await requireSession();
+  if (!guard.ok) return guard.response;
 
-  const db = await getDB();
-  db.data.processSteps = db.data.processSteps.filter((s) => s.id !== id);
-  await db.write();
+  const { id } = await params;
+  const removed = await deleteProcessStep(id);
+  if (!removed) return notFound();
+
+  await tryRecordAudit({
+    actor: guard.session,
+    action: "delete",
+    entity: "process-step",
+    entityId: id,
+    detail: removed.title,
+    ip: clientIp(req),
+  });
+
   return NextResponse.json({ ok: true });
 }

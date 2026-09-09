@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { MediaItem } from "@/lib/db";
+import type { MediaItem } from "@/lib/types";
+import { adminFetch } from "@/lib/admin-client";
 
 export default function MediaLibraryModal({
   onClose,
@@ -17,7 +18,7 @@ export default function MediaLibraryModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/admin/media")
+    adminFetch("/api/admin/media")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
         setMedia(data);
@@ -32,7 +33,7 @@ export default function MediaLibraryModal({
     setError("");
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/admin/media", { method: "POST", body: formData });
+    const res = await adminFetch("/api/admin/media", { method: "POST", body: formData });
     if (res.ok) {
       const item: MediaItem = await res.json();
       onSelect(item.url);
@@ -105,7 +106,14 @@ export default function MediaLibraryModal({
             <button
               type="button"
               onClick={onClose}
-              style={{ background: "transparent", border: "none", fontSize: "1.3rem", color: "#5E5951", cursor: "pointer", lineHeight: 1 }}
+              style={{
+                background: "transparent",
+                border: "none",
+                fontSize: "1.3rem",
+                color: "#5E5951",
+                cursor: "pointer",
+                lineHeight: 1,
+              }}
               aria-label="Close"
             >
               ×
@@ -114,7 +122,9 @@ export default function MediaLibraryModal({
         </div>
 
         {error && (
-          <p style={{ color: "#5A2630", fontSize: "0.78rem", padding: "0.75rem 1.5rem 0" }}>{error}</p>
+          <p style={{ color: "#5A2630", fontSize: "0.78rem", padding: "0.75rem 1.5rem 0" }}>
+            {error}
+          </p>
         )}
 
         <div style={{ padding: "1.5rem", overflowY: "auto" }}>
@@ -125,7 +135,13 @@ export default function MediaLibraryModal({
               No media uploaded yet — use &ldquo;Upload New&rdquo; above.
             </p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.85rem" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+                gap: "0.85rem",
+              }}
+            >
               {media.map((item) => (
                 <button
                   key={item.id}
