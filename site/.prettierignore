@@ -1,0 +1,19 @@
+.next
+.next-*
+.lighthouseci
+node_modules
+out
+public/frames
+data
+*.tsbuildinfo
+lib/frames.generated.ts
+package-lock.json
+playwright-report
+test-results
+coverage
+drizzle
+
+# Next rewrites this on every build, expanding the arrays prettier wants
+# inlined — so format:check flip-flops depending on whether a build has run
+# since the last format. Next owns the formatting of this file.
+tsconfig.json

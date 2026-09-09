@@ -4,7 +4,7 @@
     {
       "name": "hilook-interiors",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "site", "run", "dev"],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000
     }
   ]
