@@ -34,9 +34,10 @@
     ".next-e2e/types/**/*.ts",
     ".next-lhci/types/**/*.ts",
     ".next-preview/types/**/*.ts",
+    ".next-sec/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-sec/types/**/*.ts"
+    ".next-err/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

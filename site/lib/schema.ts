@@ -243,6 +243,43 @@ export const auditLog = sqliteTable(
   (t) => [index("audit_log_at_idx").on(t.at)]
 );
 
+/**
+ * Application errors, kept in the same database as everything else.
+ *
+ * The alternative considered was Sentry. This stays first-party for the same
+ * reason the analytics do: an interiors studio's error payloads can carry
+ * client names and addresses out of a contact form, and shipping those to a
+ * third party is a decision worth not making by default.
+ *
+ * Grouped by fingerprint so a loop that throws ten thousand times is one row
+ * with a count, not ten thousand rows that push everything else out of the
+ * retention window.
+ */
+export const errorLog = sqliteTable(
+  "error_log",
+  {
+    /** Hash of message + top stack frame. Same bug, same row. */
+    fingerprint: text("fingerprint").primaryKey(),
+    firstSeenAt: integer("first_seen_at").notNull().default(now),
+    lastSeenAt: integer("last_seen_at").notNull().default(now),
+    count: integer("count").notNull().default(1),
+    /** "server" | "client" — where it was caught, not where it originated. */
+    source: text("source", { enum: ["server", "client"] })
+      .notNull()
+      .default("server"),
+    message: text("message").notNull(),
+    stack: text("stack"),
+    path: text("path"),
+    method: text("method"),
+    /** Who was signed in, when that is known. Never the request body. */
+    actorId: text("actor_id"),
+    userAgent: text("user_agent"),
+    /** Set when someone marks it dealt with; keeps the list to what is live. */
+    resolvedAt: integer("resolved_at"),
+  },
+  (t) => [index("error_log_last_seen_idx").on(t.lastSeenAt)]
+);
+
 export const rateLimits = sqliteTable(
   "rate_limits",
   {

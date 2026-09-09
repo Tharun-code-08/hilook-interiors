@@ -15,6 +15,13 @@
       "when": 1788963709380,
       "tag": "0001_purple_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788965659222,
+      "tag": "0002_thankful_saracen",
+      "breakpoints": true
     }
   ]
 }

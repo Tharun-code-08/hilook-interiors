@@ -28,6 +28,8 @@ data/admin-preview-e2e.db
 data/admin-preview-e2e.db-*
 data/sec-e2e.db
 data/sec-e2e.db-*
+data/err-e2e.db
+data/err-e2e.db-*
 playwright-report
 .lighthouseci
 test-results

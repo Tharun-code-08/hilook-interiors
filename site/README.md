@@ -185,6 +185,36 @@ identical from the browser.
 - **Account security** (`/admin/password`) lists signed-in devices with their
   last-active time and address, and can end any one of them or all the others.
 
+### Activity and errors
+
+**Activity** (`/admin/activity`) is the audit log unfiltered, including
+sign-in attempts that failed. The dashboard feed deliberately hides those — a
+"what changed" list is not improved by someone mistyping their password — but
+that is the entry that matters when the question is whether anyone is trying
+to get in, and there was nowhere to see it.
+
+**Errors** (`/admin/errors`) records server failures through Next's
+`onRequestError` hook in `instrumentation.ts`, so nothing depends on each
+handler remembering a try/catch. Rows are grouped by a fingerprint of the
+message, first stack frame and path: one bug in a loop is one row with a
+count, not ten thousand rows burying everything else.
+
+This is deliberately not Sentry. Error payloads here can carry a client's name,
+email and message straight out of the contact form, and sending those to a
+third party is a decision worth making on purpose rather than inheriting from a
+default. Nothing is recorded beyond a message, stack, path, method and user
+agent — never a request body, never headers.
+
+Two consequences worth knowing:
+
+- Middleware runs on Edge, where the database client and `node:crypto` do not
+  exist, so middleware failures do not reach this table. They still appear in
+  the platform logs. The fingerprint hash is FNV-1a rather than SHA-256 for the
+  same reason — webpack follows the import into the Edge bundle even behind a
+  runtime check.
+- Marking an error resolved hides it but does not delete it. If the same
+  failure recurs, the row comes back with its history intact.
+
 ### Content-Security-Policy
 
 `script-src` carries a per-request nonce rather than `'unsafe-inline'`. That

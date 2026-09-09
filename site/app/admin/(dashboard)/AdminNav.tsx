@@ -28,7 +28,11 @@ const SECTIONS = [
   },
   {
     label: "Operations",
-    links: [{ href: "/admin/submissions", label: "Inbox" }],
+    links: [
+      { href: "/admin/submissions", label: "Inbox" },
+      { href: "/admin/activity", label: "Activity" },
+      { href: "/admin/errors", label: "Errors" },
+    ],
   },
   {
     label: "Account",

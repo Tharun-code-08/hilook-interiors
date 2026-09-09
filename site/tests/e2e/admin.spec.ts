@@ -386,6 +386,8 @@ test.describe("admin accessibility", () => {
     "/admin/content",
     "/admin/media",
     "/admin/submissions",
+    "/admin/activity",
+    "/admin/errors",
     "/admin/users",
     "/admin/password",
   ];
