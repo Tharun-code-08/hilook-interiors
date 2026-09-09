@@ -141,49 +141,103 @@ export async function summary(): Promise<AnalyticsSummary> {
 
   const pageviews = eq(t.analyticsEvents.type, "pageview");
 
-  const [totalRow] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(pageviews);
+  // All ten of these are independent, and they were awaited one after another
+  // — ten sequential round trips. Against a local SQLite file that is cheap
+  // enough to hide; against Turso every one is a network hop, so the dashboard
+  // paid ten of them in series before it could render a single number.
+  //
+  // Nothing here depends on anything else here, so they go out together.
+  const [
+    totalRow,
+    last7Row,
+    prior7Row,
+    uniqueLast7Row,
+    uniquePrior7Row,
+    dailyRows,
+    sectionRows,
+    referrerRows,
+    deviceRows,
+    browserRows,
+  ] = await Promise.all([
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(pageviews)
+      .then((r) => r[0]),
 
-  const [last7Row] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, gte(t.analyticsEvents.at, from7)));
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, gte(t.analyticsEvents.at, from7)))
+      .then((r) => r[0]),
 
-  const [prior7Row] = await db
-    .select({ n: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, gte(t.analyticsEvents.at, from14), lt(t.analyticsEvents.at, from7)));
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, gte(t.analyticsEvents.at, from14), lt(t.analyticsEvents.at, from7)))
+      .then((r) => r[0]),
 
-  const [uniqueLast7Row] = await db
-    .select({ n: countDistinct(t.analyticsEvents.visitorHash) })
-    .from(t.analyticsEvents)
-    .where(
-      and(pageviews, gte(t.analyticsEvents.at, from7), isNotNull(t.analyticsEvents.visitorHash))
-    );
-
-  const [uniquePrior7Row] = await db
-    .select({ n: countDistinct(t.analyticsEvents.visitorHash) })
-    .from(t.analyticsEvents)
-    .where(
-      and(
-        pageviews,
-        gte(t.analyticsEvents.at, from14),
-        lt(t.analyticsEvents.at, from7),
-        isNotNull(t.analyticsEvents.visitorHash)
+    db
+      .select({ n: countDistinct(t.analyticsEvents.visitorHash) })
+      .from(t.analyticsEvents)
+      .where(
+        and(pageviews, gte(t.analyticsEvents.at, from7), isNotNull(t.analyticsEvents.visitorHash))
       )
-    );
+      .then((r) => r[0]),
 
-  // Grouped by local date. SQLite's date() works on seconds, hence /1000.
-  const dailyRows = await db
-    .select({
-      day: sql<string>`date(${t.analyticsEvents.at} / 1000, 'unixepoch')`,
-      value: sql<number>`count(*)`,
-    })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, gte(t.analyticsEvents.at, day0 - 13 * DAY_MS)))
-    .groupBy(sql`1`);
+    db
+      .select({ n: countDistinct(t.analyticsEvents.visitorHash) })
+      .from(t.analyticsEvents)
+      .where(
+        and(
+          pageviews,
+          gte(t.analyticsEvents.at, from14),
+          lt(t.analyticsEvents.at, from7),
+          isNotNull(t.analyticsEvents.visitorHash)
+        )
+      )
+      .then((r) => r[0]),
+
+    // Grouped by local date. SQLite date() works on seconds, hence /1000.
+    db
+      .select({
+        day: sql<string>`date(${t.analyticsEvents.at} / 1000, 'unixepoch')`,
+        value: sql<number>`count(*)`,
+      })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, gte(t.analyticsEvents.at, day0 - 13 * DAY_MS)))
+      .groupBy(sql`1`),
+
+    db
+      .select({ name: t.analyticsEvents.section, value: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(eq(t.analyticsEvents.type, "section"), isNotNull(t.analyticsEvents.section)))
+      .groupBy(t.analyticsEvents.section)
+      .orderBy(desc(sql`count(*)`)),
+
+    db
+      .select({ host: t.analyticsEvents.referrerHost, value: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, isNotNull(t.analyticsEvents.referrerHost)))
+      .groupBy(t.analyticsEvents.referrerHost)
+      .orderBy(desc(sql`count(*)`))
+      .limit(8),
+
+    db
+      .select({ name: t.analyticsEvents.deviceClass, value: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, isNotNull(t.analyticsEvents.deviceClass)))
+      .groupBy(t.analyticsEvents.deviceClass)
+      .orderBy(desc(sql`count(*)`)),
+
+    db
+      .select({ name: t.analyticsEvents.browser, value: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, isNotNull(t.analyticsEvents.browser)))
+      .groupBy(t.analyticsEvents.browser)
+      .orderBy(desc(sql`count(*)`))
+      .limit(6),
+  ]);
 
   const dailyMap = new Map(dailyRows.map((r) => [r.day, Number(r.value)]));
   const dailyViews: { day: string; value: number }[] = [];
@@ -192,36 +246,6 @@ export async function summary(): Promise<AnalyticsSummary> {
     const key = d.toISOString().slice(0, 10);
     dailyViews.push({ day: key, value: dailyMap.get(key) ?? 0 });
   }
-
-  const sectionRows = await db
-    .select({ name: t.analyticsEvents.section, value: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(eq(t.analyticsEvents.type, "section"), isNotNull(t.analyticsEvents.section)))
-    .groupBy(t.analyticsEvents.section)
-    .orderBy(desc(sql`count(*)`));
-
-  const referrerRows = await db
-    .select({ host: t.analyticsEvents.referrerHost, value: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, isNotNull(t.analyticsEvents.referrerHost)))
-    .groupBy(t.analyticsEvents.referrerHost)
-    .orderBy(desc(sql`count(*)`))
-    .limit(8);
-
-  const deviceRows = await db
-    .select({ name: t.analyticsEvents.deviceClass, value: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, isNotNull(t.analyticsEvents.deviceClass)))
-    .groupBy(t.analyticsEvents.deviceClass)
-    .orderBy(desc(sql`count(*)`));
-
-  const browserRows = await db
-    .select({ name: t.analyticsEvents.browser, value: sql<number>`count(*)` })
-    .from(t.analyticsEvents)
-    .where(and(pageviews, isNotNull(t.analyticsEvents.browser)))
-    .groupBy(t.analyticsEvents.browser)
-    .orderBy(desc(sql`count(*)`))
-    .limit(6);
 
   const sections = sectionRows.map((r) => ({ name: r.name ?? "unknown", value: Number(r.value) }));
 

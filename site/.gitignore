@@ -30,6 +30,8 @@ data/sec-e2e.db
 data/sec-e2e.db-*
 data/err-e2e.db
 data/err-e2e.db-*
+data/perf-e2e.db
+data/perf-e2e.db-*
 playwright-report
 .lighthouseci
 test-results

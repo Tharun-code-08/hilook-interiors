@@ -163,6 +163,37 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Why the admin pages are server components
+
+Every list screen renders its data on the server and hands it to the
+interactive half as a prop. That is the reason for the `page.tsx` /
+`XxxAdmin.tsx` split throughout `app/admin/(dashboard)/`.
+
+They used to be client components that fetched on mount: the browser received
+an empty shell, downloaded and ran the JavaScript, and only then asked for the
+data the server had been holding when it rendered the page. Measured against a
+database with 40,000 analytics events and 400 enquiries, the request for
+`/api/admin/portfolio` started **463ms after the document arrived** — a whole
+round trip spent showing "Loading…".
+
+Three other things were costing time, all found by measuring rather than
+guessing:
+
+- `summary()` ran ten independent queries with ten separate `await`s. Against a
+  local SQLite file that hides; against Turso every one is a network hop, so
+  the dashboard paid ten in series before it could render a number. They now go
+  out together, as do the two trailing submission-window queries.
+- `listSubmissions()` and `listMedia()` were unbounded — every row, every
+  render. The inbox only grows, so that screen would have got slower every
+  month with no ceiling. Both are capped, and the inbox says so on screen
+  rather than truncating silently; CSV export still covers everything.
+- The activity log rendered 200 rows. Nobody reads the two-hundredth.
+
+Measured after, clicking through the sidebar: every screen lands between
+roughly 100 and 230ms, with **no API calls at all once the page has loaded**.
+If you add a screen, follow the same split — a `useEffect` that fetches on
+mount puts the round trip back.
+
 ### Sessions and revocation
 
 The session cookie is a JWT, but it is not self-contained: each one carries a

@@ -236,18 +236,22 @@ export default async function AdminDashboardPage() {
   const DAY = 86_400_000;
   const day0 = new Date().setHours(0, 0, 0, 0);
 
-  // All aggregated in SQL now rather than by scanning arrays in memory — which
-  // is what makes unique visitors and device split possible at all (M4).
-  const [analytics, submissions, projects, reviews, activity] = await Promise.all([
-    summary(),
-    submissionStats(),
-    listProjects(),
-    listReviews(),
-    recentAudit(20),
-  ]);
-
-  const submissionsLast7 = await submissionsBetween(day0 - 6 * DAY, Date.now());
-  const submissionsPrior7 = await submissionsBetween(day0 - 13 * DAY, day0 - 6 * DAY);
+  // All aggregated in SQL rather than by scanning arrays in memory — which is
+  // what makes unique visitors and device split possible at all (M4).
+  //
+  // One Promise.all, not one plus two trailing awaits: the two submission
+  // windows were sequential at the end for no reason, adding two round trips
+  // to every dashboard render.
+  const [analytics, submissions, projects, reviews, activity, submissionsLast7, submissionsPrior7] =
+    await Promise.all([
+      summary(),
+      submissionStats(),
+      listProjects(),
+      listReviews(),
+      recentAudit(20),
+      submissionsBetween(day0 - 6 * DAY, Date.now()),
+      submissionsBetween(day0 - 13 * DAY, day0 - 6 * DAY),
+    ]);
 
   const unread = submissions.unread;
   const maxSection = analytics.sections[0]?.value ?? 0;

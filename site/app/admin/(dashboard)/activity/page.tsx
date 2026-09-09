@@ -29,7 +29,10 @@ const ACTION_LABEL: Record<string, string> = {
 const NOTABLE = new Set(["login.failed", "password.change", "session.revoke", "delete"]);
 
 export default async function AdminActivityPage() {
-  const entries = await recentAudit(200);
+  // 100, not 200. Nobody reads the two-hundredth row, and each one is DOM the
+  // browser has to build before the page is usable — measured at the slowest
+  // screen in the panel before this came down.
+  const entries = await recentAudit(100);
   const failedSignIns = entries.filter((e) => e.action === "login.failed").length;
 
   return (
@@ -38,8 +41,8 @@ export default async function AdminActivityPage() {
         <div>
           <h1 className="ad-page-title">Activity</h1>
           <p className="ad-page-sub">
-            Every action taken in the panel, including sign-in attempts that failed. Kept to the
-            most recent 200 entries.
+            Every action taken in the panel, including sign-in attempts that failed. Showing the 100
+            most recent.
           </p>
         </div>
       </header>

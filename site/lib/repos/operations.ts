@@ -26,9 +26,28 @@ function toSubmission(r: typeof t.submissions.$inferSelect): Submission {
   };
 }
 
-export async function listSubmissions(): Promise<Submission[]> {
-  const rows = await getDb().select().from(t.submissions).orderBy(desc(t.submissions.createdAt));
+/**
+ * Most recent enquiries first, capped.
+ *
+ * This was unbounded — every row, every render. The inbox is the one table
+ * that only ever grows, so an admin screen that renders all of it gets slower
+ * every month and has no ceiling. The CSV export still covers everything;
+ * this is what the screen shows.
+ */
+export async function listSubmissions(limit = 100): Promise<Submission[]> {
+  const rows = await getDb()
+    .select()
+    .from(t.submissions)
+    .orderBy(desc(t.submissions.createdAt))
+    .limit(limit);
   return rows.map(toSubmission);
+}
+
+export async function countSubmissions(): Promise<number> {
+  const [row] = await getDb()
+    .select({ n: sql<number>`count(*)` })
+    .from(t.submissions);
+  return Number(row?.n ?? 0);
 }
 
 export async function createSubmission(input: {
@@ -124,8 +143,9 @@ function toMedia(r: typeof t.media.$inferSelect): MediaItem {
   };
 }
 
-export async function listMedia(): Promise<MediaItem[]> {
-  const rows = await getDb().select().from(t.media).orderBy(desc(t.media.uploadedAt));
+/** Most recently uploaded first, capped for the same reason as the inbox. */
+export async function listMedia(limit = 120): Promise<MediaItem[]> {
+  const rows = await getDb().select().from(t.media).orderBy(desc(t.media.uploadedAt)).limit(limit);
   return rows.map(toMedia);
 }
 
