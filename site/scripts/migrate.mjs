@@ -22,11 +22,34 @@ const remoteUrl = process.env.TURSO_DATABASE_URL;
 let url;
 if (remoteUrl) {
   url = remoteUrl;
-  console.log("[migrate] target: Turso (remote)");
+  console.log(
+    remoteUrl.startsWith("file:")
+      ? `[migrate] target: local file ${remoteUrl.replace(/^file:/, "")}`
+      : "[migrate] target: Turso (remote)"
+  );
 } else {
-  mkdirSync(join(root, "data"), { recursive: true });
   url = `file:${root.split("\\").join("/")}/data/hilook.db`;
   console.log("[migrate] target: local file data/hilook.db");
+}
+
+/**
+ * Ensure the directory holding a file-backed database exists.
+ *
+ * This used to happen only on the branch that builds the default URL, on the
+ * assumption that TURSO_DATABASE_URL meant a remote database. It does not: the
+ * e2e suite and the Lighthouse run both point it at a file: URL under data/,
+ * so the mkdir was skipped and libSQL failed with SQLITE_CANTOPEN — data/ is
+ * git-ignored and does not exist in a fresh checkout.
+ *
+ * Invisible on a developer machine, where data/ has existed since the first
+ * dev server, and it surfaced on the very first CI run, where every checkout
+ * is clean. Anyone cloning the repository and running the tests would have hit
+ * exactly the same wall.
+ */
+if (url.startsWith("file:")) {
+  const filePath = url.slice("file:".length);
+  const dir = dirname(filePath.startsWith("//") ? filePath.slice(2) : filePath);
+  if (dir && dir !== ".") mkdirSync(dir, { recursive: true });
 }
 
 const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
