@@ -46,6 +46,13 @@ export default defineConfig({
           TURSO_DATABASE_URL: "file:./data/e2e.db",
           NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3100",
           ADMIN_INITIAL_PASSWORD: "e2e-admin-password-1234",
+          // The suite posts the contact form more times in three minutes than
+          // a person would in a month, and the chromium and mobile projects
+          // share one address, so the production ceiling of 5/hour stops the
+          // later tests storing anything and they fail on an empty inbox.
+          // The limiter itself is covered by the integration tests.
+          RATE_LIMIT_CONTACT: "200",
+          RATE_LIMIT_NEWSLETTER: "200",
           // Its own build directory. A running `next dev` owns .next, and a
           // build into the same place leaves the two clobbering each other —
           // the symptom is a server that starts fine and then serves a

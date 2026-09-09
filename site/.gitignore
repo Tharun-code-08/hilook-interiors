@@ -36,6 +36,8 @@ data/devcheck-e2e.db
 data/devcheck-e2e.db-*
 data/walk-e2e.db
 data/walk-e2e.db-*
+data/flag-e2e.db
+data/flag-e2e.db-*
 playwright-report
 .lighthouseci
 test-results

@@ -23,6 +23,8 @@ function toSubmission(r: typeof t.submissions.$inferSelect): Submission {
     read: r.read,
     responded: r.responded,
     createdAt: iso(r.createdAt),
+    flagged: r.flagged,
+    flagReason: r.flagReason,
   };
 }
 
@@ -34,20 +36,53 @@ function toSubmission(r: typeof t.submissions.$inferSelect): Submission {
  * every month and has no ceiling. The CSV export still covers everything;
  * this is what the screen shows.
  */
-export async function listSubmissions(limit = 100): Promise<Submission[]> {
-  const rows = await getDb()
-    .select()
-    .from(t.submissions)
-    .orderBy(desc(t.submissions.createdAt))
-    .limit(limit);
+export async function listSubmissions(
+  limit = 100,
+  options: { flagged?: boolean } = {}
+): Promise<Submission[]> {
+  const db = getDb();
+  const rows =
+    options.flagged === undefined
+      ? await db.select().from(t.submissions).orderBy(desc(t.submissions.createdAt)).limit(limit)
+      : await db
+          .select()
+          .from(t.submissions)
+          .where(eq(t.submissions.flagged, options.flagged))
+          .orderBy(desc(t.submissions.createdAt))
+          .limit(limit);
+
   return rows.map(toSubmission);
 }
 
-export async function countSubmissions(): Promise<number> {
-  const [row] = await getDb()
-    .select({ n: sql<number>`count(*)` })
-    .from(t.submissions);
+export async function countSubmissions(options: { flagged?: boolean } = {}): Promise<number> {
+  const db = getDb();
+  const [row] =
+    options.flagged === undefined
+      ? await db.select({ n: sql<number>`count(*)` }).from(t.submissions)
+      : await db
+          .select({ n: sql<number>`count(*)` })
+          .from(t.submissions)
+          .where(eq(t.submissions.flagged, options.flagged));
+
   return Number(row?.n ?? 0);
+}
+
+/**
+ * Clears the spam flag — the operator has decided this is a real enquiry.
+ *
+ * The whole reason flagged submissions are stored rather than dropped: the
+ * checks are heuristics, and a person looking at the message is the only
+ * thing that can actually tell.
+ */
+export async function unflagSubmission(id: string): Promise<Submission | null> {
+  const db = getDb();
+  await db
+    .update(t.submissions)
+    .set({ flagged: false, flagReason: null })
+    .where(eq(t.submissions.id, id));
+
+  const [row] = await db.select().from(t.submissions).where(eq(t.submissions.id, id));
+  return row ? toSubmission(row) : null;
 }
 
 export async function createSubmission(input: {
@@ -55,6 +90,9 @@ export async function createSubmission(input: {
   email: string;
   phone: string;
   message: string;
+  /** Set when a spam check caught it; the row is kept either way. */
+  flagged?: boolean;
+  flagReason?: string | null;
 }): Promise<Submission> {
   const db = getDb();
   const id = nanoid();
@@ -86,22 +124,51 @@ export async function deleteSubmission(id: string): Promise<Submission | null> {
   return toSubmission(row);
 }
 
+/**
+ * Counts for the dashboard — real enquiries only.
+ *
+ * Flagged rows are excluded deliberately. They are kept so a false positive
+ * can be rescued, but they are not leads: counting them would inflate "unread
+ * enquiries" and the seven-day figure with whatever spam arrived, which turns
+ * the one number the business actually watches into noise.
+ */
 export async function submissionStats(): Promise<{ total: number; unread: number }> {
   const db = getDb();
-  const [totalRow] = await db.select({ n: count() }).from(t.submissions);
-  const [unreadRow] = await db
-    .select({ n: count() })
-    .from(t.submissions)
-    .where(eq(t.submissions.read, false));
+  const real = eq(t.submissions.flagged, false);
+
+  const [totalRow, unreadRow] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(t.submissions)
+      .where(real)
+      .then((r) => r[0]),
+    db
+      .select({ n: count() })
+      .from(t.submissions)
+      .where(and(real, eq(t.submissions.read, false)))
+      .then((r) => r[0]),
+  ]);
+
   return { total: totalRow?.n ?? 0, unread: unreadRow?.n ?? 0 };
 }
 
-/** Counts enquiries in [from, to) — used for the dashboard's period deltas. */
+/**
+ * Counts enquiries in [from, to) — the dashboard's period deltas.
+ *
+ * Real enquiries only, for the same reason as submissionStats: a week with
+ * heavy spam would otherwise read as a week with heavy interest.
+ */
 export async function submissionsBetween(from: number, to: number): Promise<number> {
   const [row] = await getDb()
     .select({ n: count() })
     .from(t.submissions)
-    .where(and(gte(t.submissions.createdAt, from), lt(t.submissions.createdAt, to)));
+    .where(
+      and(
+        eq(t.submissions.flagged, false),
+        gte(t.submissions.createdAt, from),
+        lt(t.submissions.createdAt, to)
+      )
+    );
   return row?.n ?? 0;
 }
 

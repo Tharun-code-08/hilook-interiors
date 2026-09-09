@@ -314,6 +314,117 @@ test.describe("contact form reaches the inbox", () => {
   });
 });
 
+/**
+ * Flagged submissions are kept, not dropped.
+ *
+ * The contact endpoint used to discard anything a spam check caught and return
+ * the normal success shape, so a false positive lost a client enquiry with
+ * nothing behind it but a console warning. The checks are heuristics — a
+ * password manager can fill the honeypot, and the timing window is a guess
+ * about how fast a person moves — and on a site whose enquiries are the
+ * business, that is the wrong direction to fail in.
+ *
+ * The visitor still sees success either way; telling a bot which check it
+ * tripped teaches the author to evade it. What changed is that the row
+ * survives for a human to look at.
+ */
+test.describe("flagged submissions", () => {
+  test("a honeypot hit is stored for review rather than discarded", async ({ page, request }) => {
+    const marker = `Honeypot Probe ${Date.now()}`;
+
+    const res = await request.post("/api/contact", {
+      data: {
+        name: marker,
+        email: "probe@example.com",
+        phone: "",
+        message: "Caught by the hidden field.",
+        website: "http://spam.example",
+      },
+    });
+
+    // Indistinguishable from a real success, on purpose.
+    expect(res.status()).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+
+    await signIn(page);
+    await page.goto("/admin/submissions");
+
+    // Not in the real inbox...
+    await expect(page.getByText(marker)).toHaveCount(0);
+
+    // ...but held under Filtered, with the reason it was caught.
+    await page.getByRole("tab", { name: /filtered/i }).click();
+    await expect(page.getByText(marker)).toBeVisible();
+    await expect(page.getByText(/hidden field/i).first()).toBeVisible();
+  });
+
+  test("a filtered message can be restored to the inbox", async ({ page, request }) => {
+    const marker = `Rescue Probe ${Date.now()}`;
+
+    await request.post("/api/contact", {
+      data: {
+        name: marker,
+        email: "rescue@example.com",
+        phone: "",
+        message: "A real client the checks got wrong.",
+        website: "http://looks-like-spam.example",
+      },
+    });
+
+    await signIn(page);
+    await page.goto("/admin/submissions");
+    await page.getByRole("tab", { name: /filtered/i }).click();
+    await expect(page.getByText(marker)).toBeVisible();
+
+    const card = page.locator("article.ad-enquiry").filter({ hasText: marker });
+    await card.getByRole("button", { name: /this is a real enquiry/i }).click();
+
+    // Reloaded rather than trusting the optimistic move: the point of the test
+    // is that it was persisted.
+    await page.goto("/admin/submissions");
+    await expect(page.getByText(marker)).toBeVisible();
+  });
+
+  test("spam does not inflate the dashboard's enquiry counts", async ({ page, request }) => {
+    await signIn(page);
+    await page.goto("/admin");
+    const before = Number(
+      (
+        await page
+          .locator(".ad-stat")
+          .filter({ hasText: /unread enquiries/i })
+          .locator(".ad-stat-value")
+          .innerText()
+      ).trim()
+    );
+
+    await request.post("/api/contact", {
+      data: {
+        name: `Noise ${Date.now()}`,
+        email: "noise@example.com",
+        phone: "",
+        message: "Should not count as a lead.",
+        website: "http://spam.example",
+      },
+    });
+
+    await page.goto("/admin");
+    const after = Number(
+      (
+        await page
+          .locator(".ad-stat")
+          .filter({ hasText: /unread enquiries/i })
+          .locator(".ad-stat-value")
+          .innerText()
+      ).trim()
+    );
+
+    // Stored, but not a lead. Counting it would turn the one number the
+    // business watches into whatever spam happened to arrive.
+    expect(after).toBe(before);
+  });
+});
+
 test.describe("session revocation", () => {
   test("a token captured before sign-out stops working after it", async ({ page, context }) => {
     await signIn(page);

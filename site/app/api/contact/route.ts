@@ -28,19 +28,30 @@ export async function POST(req: NextRequest) {
 
   const { name, email, phone, message, website, startedAt } = parsed.data;
 
-  // Spam signals. Both return the normal success shape: telling a bot which
-  // check it tripped teaches the author how to evade it, and a false positive
-  // on a real visitor should not look like a broken form.
+  // Spam signals. Both paths return the normal success shape: telling a bot
+  // which check it tripped teaches the author how to evade it, and a false
+  // positive on a real visitor should not look like a broken form.
   const trippedHoneypot = website.trim().length > 0;
   const submittedTooFast = startedAt !== undefined && Date.now() - startedAt < MIN_FILL_MS;
+  const flagged = trippedHoneypot || submittedTooFast;
 
-  if (trippedHoneypot || submittedTooFast) {
-    console.warn(
-      `[hilook] contact submission discarded as spam (${trippedHoneypot ? "honeypot" : "timing"}) from ${ip}`
-    );
-    return NextResponse.json({ ok: true });
-  }
+  // Flagged submissions are stored, not dropped.
+  //
+  // They used to be discarded here with nothing kept but a console warning, so
+  // a false positive lost a client enquiry and left no way to notice. These
+  // checks are heuristics: the honeypot can be filled by an over-eager
+  // password manager, and the timing window is a guess about how fast a human
+  // moves. Getting one wrong costs a commission; keeping some spam costs a
+  // row. The inbox holds these separately for review, and they are excluded
+  // from every count the dashboard reports.
+  await createSubmission({
+    name,
+    email,
+    phone,
+    message,
+    flagged,
+    flagReason: flagged ? (trippedHoneypot ? "honeypot" : "timing") : null,
+  });
 
-  await createSubmission({ name, email, phone, message });
   return NextResponse.json({ ok: true });
 }

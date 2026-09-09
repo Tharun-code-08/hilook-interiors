@@ -48,6 +48,10 @@ export type Submission = {
   createdAt: string;
   read: boolean;
   responded: boolean;
+  /** Caught by a spam check and held for review rather than dropped. */
+  flagged: boolean;
+  /** Which check caught it: "honeypot" or "timing". */
+  flagReason: string | null;
 };
 
 export type MediaItem = {

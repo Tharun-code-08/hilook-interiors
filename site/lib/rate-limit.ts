@@ -33,10 +33,38 @@ const POLICIES: Record<Bucket, Policy> = {
   "password-change": { limit: 10, windowMs: HOUR },
 };
 
+/**
+ * Per-bucket limit override, e.g. RATE_LIMIT_CONTACT=25.
+ *
+ * Two reasons this is configurable rather than fixed.
+ *
+ * The real one: these are per-IP, and an IP is not a person. Several people in
+ * one office behind a single NAT address share a bucket, so five contact
+ * submissions an hour is a plausible ceiling for a home visitor and a wrong
+ * one for a studio whose clients all work at the same firm. Whoever operates
+ * the site is better placed to judge that than this file is.
+ *
+ * The incidental one: the e2e suite posts the contact form more times in three
+ * minutes than a person would in a month, across two browser projects sharing
+ * one address, so it raises this rather than contorting the tests around a
+ * limit that is doing its job. The limiter's own behaviour is covered by the
+ * integration tests, which drive it directly.
+ *
+ * Only the count is adjustable. The window is not, so a misconfiguration can
+ * loosen a limit but never remove it.
+ */
+function limitFor(bucket: Bucket): number {
+  const raw = process.env[`RATE_LIMIT_${bucket.toUpperCase().replace(/-/g, "_")}`];
+  const parsed = Number(raw);
+  return raw !== undefined && Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : POLICIES[bucket].limit;
+}
+
 export type RateLimitResult = { ok: boolean; remaining: number; retryAfter: number };
 
 export async function checkRateLimit(bucket: Bucket, identifier: string): Promise<RateLimitResult> {
-  const policy = POLICIES[bucket];
+  const policy = { ...POLICIES[bucket], limit: limitFor(bucket) };
   const key = `${bucket}:${identifier}`;
   const now = Date.now();
   const db = getDb();

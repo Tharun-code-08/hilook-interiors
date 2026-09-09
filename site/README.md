@@ -163,6 +163,43 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Spam-flagged enquiries are kept, not dropped
+
+The contact endpoint has two spam checks — a honeypot field, and a minimum
+fill time of three seconds. Anything they catch used to be discarded on the
+spot, with the visitor shown the normal thank-you and nothing kept but a
+`console.warn`.
+
+Both checks are heuristics. A password manager can fill a hidden field, and
+the fill-time window is a guess about how fast a person moves. On a site whose
+enquiries are the business, a false positive costs a commission and leaves no
+trace that it happened; keeping some spam costs a row. So flagged submissions
+are now stored with the reason they were caught, and the inbox holds them under
+a **Filtered** tab where the operator can read one and move it across.
+
+The visitor still sees the same success message either way — telling a bot
+which check it tripped teaches the author to evade it — and the two lists are
+queried separately rather than filtered in the browser, so a spam run cannot
+push genuine enquiries out of the hundred rows the page shows.
+
+Flagged rows are excluded from every count the dashboard reports. They are
+kept for rescue, not counted as leads; including them would turn "unread
+enquiries" and the seven-day figure into whatever spam happened to arrive.
+
+### Rate limits are per-IP, and an IP is not a person
+
+`lib/rate-limit.ts` holds the defaults, and each bucket's count can be
+overridden with an environment variable — `RATE_LIMIT_CONTACT=25` and so on.
+Only the count is adjustable; the window is fixed, so a misconfiguration can
+loosen a limit but never remove it.
+
+This matters more than it looks. Several people in one office behind a single
+NAT address share a bucket, so five contact submissions an hour is a sensible
+ceiling for a home visitor and a wrong one for a studio whose clients all work
+at the same firm. The e2e suite raises the same knob for its own reasons: it
+posts the contact form more times in three minutes than a person would in a
+month, across two browser projects sharing one address.
+
 ### Things that look handled and are not
 
 Three of these turned up in one verification pass, and they share a shape: a

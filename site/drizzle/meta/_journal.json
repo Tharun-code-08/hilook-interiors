@@ -22,6 +22,13 @@
       "when": 1788965659222,
       "tag": "0002_thankful_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788975982576,
+      "tag": "0003_equal_rhino",
+      "breakpoints": true
     }
   ]
 }

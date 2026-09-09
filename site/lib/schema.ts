@@ -136,10 +136,29 @@ export const submissions = sqliteTable(
     read: integer("read", { mode: "boolean" }).notNull().default(false),
     responded: integer("responded", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull().default(now),
+
+    /**
+     * Caught by a spam check rather than dropped.
+     *
+     * The contact endpoint used to discard these outright and return the
+     * normal success shape, so a false positive lost a client enquiry with
+     * nothing behind it but a console warning. On a site whose enquiries are
+     * the business, that is the wrong direction to fail in: storing a little
+     * spam costs a row, and dropping one real enquiry costs a commission.
+     *
+     * The visitor still sees success either way — telling a bot which check it
+     * tripped teaches the author to evade it.
+     */
+    flagged: integer("flagged", { mode: "boolean" }).notNull().default(false),
+    /** "honeypot" | "timing" — which check caught it. */
+    flagReason: text("flag_reason"),
   },
   (t) => [
     index("submissions_created_idx").on(t.createdAt),
     index("submissions_read_idx").on(t.read),
+    // The inbox filters on this on every load, and spam is the larger side of
+    // the split once a site has been up a while.
+    index("submissions_flagged_idx").on(t.flagged, t.createdAt),
   ]
 );
 
