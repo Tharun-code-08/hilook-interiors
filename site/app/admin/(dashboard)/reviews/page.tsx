@@ -6,6 +6,7 @@ import ImagePicker from "../components/ImagePicker";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
 import { jsonBody, useMutation } from "../components/useMutation";
+import { useAutosave } from "../components/useAutosave";
 import {
   Badge,
   Button,
@@ -14,6 +15,7 @@ import {
   EmptyState,
   Loading,
   PageHeader,
+  SaveIndicator,
   SelectField,
   TextArea,
   TextField,
@@ -32,6 +34,12 @@ export default function AdminReviewsPage() {
   const [form, setForm] = useState(emptyForm);
   const { mutate } = useMutation();
   const confirm = useConfirm();
+
+  const autosave = useAutosave({
+    endpoint: (id) => `/api/admin/reviews/${id}`,
+    getSnapshot: () => reviews,
+    restore: setReviews,
+  });
 
   async function load() {
     setLoading(true);
@@ -57,19 +65,22 @@ export default function AdminReviewsPage() {
     load();
   }
 
-  async function updateReview(id: string, patch: Partial<Review>) {
-    // Snapshot before the optimistic write so a rejected save is undone
-    // rather than left on screen as though it succeeded.
-    const previous = reviews;
-    await mutate(
-      `/api/admin/reviews/${id}`,
-      { method: "PUT", ...jsonBody(patch) },
-      {
-        optimistic: () =>
-          setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r))),
-        rollback: () => setReviews(previous),
-      }
-    );
+  /** Typed fields — debounced so a burst of typing is one request. */
+  function updateReview(id: string, patch: Partial<Review>) {
+    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    autosave.save(id, patch);
+  }
+
+  /**
+   * Approve / feature toggles.
+   *
+   * Sent immediately rather than debounced: these decide whether a
+   * testimonial is publicly visible, and waiting out a typing delay to publish
+   * something reads as the click not having registered.
+   */
+  function toggleReview(id: string, patch: Partial<Review>) {
+    setReviews((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    autosave.saveNow(id, patch);
   }
 
   async function removeReview(id: string) {
@@ -98,7 +109,8 @@ export default function AdminReviewsPage() {
     <>
       <PageHeader
         title="Reviews"
-        description="Client testimonials. Only approved reviews appear on the public site; featured ones lead the section."
+        description="Client testimonials. Only approved reviews appear on the public site; featured ones lead the section. Edits below save on their own."
+        actions={<SaveIndicator status={autosave.status} />}
       />
 
       <div className="ad-stack-lg">
@@ -195,12 +207,12 @@ export default function AdminReviewsPage() {
                     <Checkbox
                       label="Approved"
                       checked={r.approved}
-                      onChange={(e) => updateReview(r.id, { approved: e.target.checked })}
+                      onChange={(e) => toggleReview(r.id, { approved: e.target.checked })}
                     />
                     <Checkbox
                       label="Featured"
                       checked={r.featured}
-                      onChange={(e) => updateReview(r.id, { featured: e.target.checked })}
+                      onChange={(e) => toggleReview(r.id, { featured: e.target.checked })}
                     />
                     <Button
                       variant="danger-quiet"

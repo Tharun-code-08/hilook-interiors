@@ -746,6 +746,20 @@
   flex: 1;
 }
 
+.ad-savestate {
+  font-size: 12px;
+  color: var(--ad-ink-3);
+  /* Reserves the row so the header does not jump as the text changes. */
+  min-height: 18px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ad-savestate--error {
+  color: var(--ad-danger-ink);
+  font-weight: 600;
+}
+
 .ad-saved {
   font-size: 13px;
   color: var(--ad-success-ink);

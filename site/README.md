@@ -163,6 +163,30 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Saving
+
+The edit-in-place lists (Portfolio, Services, Process, Reviews) have no Save
+button — edits persist about ¾ of a second after you stop typing, and the
+header says where they are up to.
+
+They previously fired a `PUT` straight from `onChange`, so typing a
+description was one request per character. The e2e suite measures this: with
+the debounce removed it records 24 requests for a 23-character edit; with it,
+one. That is not only wasted traffic — every one of those was an audit-log row
+and a chance for two responses to land out of order and write a stale value
+back.
+
+`useAutosave` coalesces per record, so editing a title and then its
+description inside one window is a single request carrying both. Discrete
+actions — the approve/feature toggles, the category select, the image list —
+go through `saveNow` instead and skip the delay, because waiting out a typing
+debounce to publish a testimonial reads as the click not registering.
+
+The risk a debounce introduces is losing the newest keystrokes when the page
+goes away mid-window, so it flushes on unmount and on `pagehide`, both with
+`keepalive` so the request outlives the document. There is an e2e test for
+exactly that: type, navigate immediately, come back, and the edit is there.
+
 ### Design system
 
 The panel has its own stylesheet, `app/admin/admin.css`, loaded only on

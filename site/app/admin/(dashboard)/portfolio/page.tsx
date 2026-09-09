@@ -11,11 +11,13 @@ import {
   EmptyState,
   Loading,
   PageHeader,
+  SaveIndicator,
   SelectField,
   TextArea,
   TextField,
 } from "../../components/ui";
 import { jsonBody, useMutation } from "../components/useMutation";
+import { useAutosave } from "../components/useAutosave";
 
 type PortfolioForm = {
   title: string;
@@ -38,6 +40,12 @@ export default function AdminPortfolioPage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const { mutate } = useMutation();
   const confirm = useConfirm();
+
+  const autosave = useAutosave({
+    endpoint: (id) => `/api/admin/portfolio/${id}`,
+    getSnapshot: () => projects,
+    restore: setProjects,
+  });
 
   async function load() {
     setLoading(true);
@@ -67,19 +75,16 @@ export default function AdminPortfolioPage() {
     }
   }
 
-  async function updateProject(id: string, patch: Partial<PortfolioProject>) {
-    // Snapshot before the optimistic write, so a rejected save can be undone
-    // rather than leaving the screen showing an edit the server refused.
-    const previous = projects;
-    await mutate(
-      `/api/admin/portfolio/${id}`,
-      { method: "PUT", ...jsonBody(patch) },
-      {
-        optimistic: () =>
-          setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p))),
-        rollback: () => setProjects(previous),
-      }
-    );
+  /** Typed fields — debounced. The category select goes through saveNow. */
+  function updateProject(id: string, patch: Partial<PortfolioProject>) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    autosave.save(id, patch);
+  }
+
+  /** Discrete changes: category, and the image list from the picker. */
+  function setProjectField(id: string, patch: Partial<PortfolioProject>) {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    autosave.saveNow(id, patch);
   }
 
   async function deleteProject(id: string) {
@@ -129,7 +134,8 @@ export default function AdminPortfolioPage() {
     <>
       <PageHeader
         title="Portfolio"
-        description="Projects shown on the home page and at /work. Drag a card to reorder — the order here is the order visitors see."
+        description="Projects shown on the home page and at /work. Drag a card to reorder — the order here is the order visitors see. Edits below save on their own."
+        actions={<SaveIndicator status={autosave.status} />}
       />
 
       <div className="ad-stack-lg">
@@ -208,7 +214,7 @@ export default function AdminPortfolioPage() {
                           hiddenLabel
                           value={p.category}
                           onChange={(e) =>
-                            updateProject(p.id, {
+                            setProjectField(p.id, {
                               category: e.target.value as "Residential" | "Commercial",
                             })
                           }
@@ -238,7 +244,7 @@ export default function AdminPortfolioPage() {
                   <MultiImagePicker
                     label="Project images"
                     values={p.images}
-                    onChange={(images) => updateProject(p.id, { images })}
+                    onChange={(images) => setProjectField(p.id, { images })}
                   />
                 </div>
               </div>

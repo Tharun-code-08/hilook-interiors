@@ -6,12 +6,14 @@ import ImagePicker from "../components/ImagePicker";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
 import { jsonBody, useMutation } from "../components/useMutation";
+import { useAutosave } from "../components/useAutosave";
 import {
   Button,
   Card,
   EmptyState,
   Loading,
   PageHeader,
+  SaveIndicator,
   TextArea,
   TextField,
 } from "../../components/ui";
@@ -26,6 +28,14 @@ export default function AdminServicesPage() {
   });
   const { mutate } = useMutation();
   const confirm = useConfirm();
+
+  // Edits to an existing row are debounced and coalesced; see useAutosave for
+  // why a PUT per keystroke was worth removing.
+  const autosave = useAutosave({
+    endpoint: (id) => `/api/admin/services/${id}`,
+    getSnapshot: () => services,
+    restore: setServices,
+  });
 
   async function load() {
     setLoading(true);
@@ -51,19 +61,11 @@ export default function AdminServicesPage() {
     load();
   }
 
-  async function updateService(id: string, patch: Partial<Service>) {
-    // Snapshot before the optimistic write so a rejected save is undone
-    // rather than left on screen as though it succeeded.
-    const previous = services;
-    await mutate(
-      `/api/admin/services/${id}`,
-      { method: "PUT", ...jsonBody(patch) },
-      {
-        optimistic: () =>
-          setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
-        rollback: () => setServices(previous),
-      }
-    );
+  function updateService(id: string, patch: Partial<Service>) {
+    // Local state moves immediately so typing stays responsive; the network
+    // write is queued and coalesced.
+    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    autosave.save(id, patch);
   }
 
   async function removeService(id: string) {
@@ -92,7 +94,8 @@ export default function AdminServicesPage() {
     <>
       <PageHeader
         title="Services"
-        description="What the studio offers. These appear in the Services section of the home page, in this order."
+        description="What the studio offers. These appear in the Services section of the home page, in this order. Edits below save on their own."
+        actions={<SaveIndicator status={autosave.status} />}
       />
 
       <div className="ad-stack-lg">

@@ -45,9 +45,15 @@ async function signIn(page: Page): Promise<void> {
 }
 
 async function rotatePassword(page: Page, from: string, to: string): Promise<void> {
-  await page.locator("#current-password").fill(from);
-  await page.locator("#new-password").fill(to);
-  await page.locator("#confirm-password").fill(to);
+  // By label, not by id. These fields used to carry hand-written ids; they now
+  // come from the TextField primitive, which generates its own via useId. The
+  // ids changing broke this helper silently — silently because signIn only
+  // reaches it on a database where the seeded password has not been rotated
+  // yet, so a suite run against an already-used e2e database still passed. CI
+  // starts from a clean checkout and would not have.
+  await page.getByLabel("Current password", { exact: true }).fill(from);
+  await page.getByLabel("New password", { exact: true }).fill(to);
+  await page.getByLabel("Confirm new password", { exact: true }).fill(to);
   await page.getByRole("button", { name: /update password/i }).click();
   await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
 }
@@ -250,6 +256,68 @@ test.describe("public endpoint hardening", () => {
 
     // 200 on purpose: telling a bot which check it tripped teaches evasion.
     expect(res.ok()).toBe(true);
+  });
+});
+
+/**
+ * Autosave in the edit-in-place lists.
+ *
+ * These lists used to fire a PUT from onChange, so typing a description was
+ * one request per character. The test counts requests rather than trusting the
+ * hook, because "it feels fine locally" is exactly how the original survived.
+ */
+test.describe("autosave", () => {
+  test("a burst of typing is one request, not one per keystroke", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/admin/services");
+
+    // The seeded row, targeted by its own field rather than by index. An
+    // earlier version created a service first and used .nth(1); the list grows
+    // across runs, so that index pointed at a different record each time.
+    const target = page.locator("input.ad-input--title").first();
+    await expect(target).toBeVisible();
+
+    const puts: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "PUT" && req.url().includes("/api/admin/services/")) {
+        puts.push(req.url());
+      }
+    });
+
+    await target.fill("");
+    await target.pressSequentially("Kitchen and bath design", { delay: 60 });
+
+    // Proves the keystrokes landed — without this the request count could be
+    // low simply because nothing was typed.
+    await expect(target).toHaveValue("Kitchen and bath design");
+    await expect(page.getByText("All changes saved")).toBeVisible({ timeout: 5000 });
+
+    // Measured: with the debounce removed this records 24 PUTs for the 23
+    // characters below — the behaviour this replaced. With it, 1.
+    expect(
+      puts.length,
+      `expected the burst to coalesce, got ${puts.length} PUTs`
+    ).toBeLessThanOrEqual(2);
+    expect(puts.length).toBeGreaterThan(0);
+  });
+
+  test("an edit still saves when navigating away mid-debounce", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/admin/services");
+
+    const field = page.getByRole("textbox", { name: "Name" }).nth(1);
+    await field.fill("Saved on navigate");
+
+    // Leave immediately — well inside the debounce window. The unmount flush
+    // is what has to carry this, and losing it is the failure mode a debounce
+    // introduces.
+    await page.getByRole("link", { name: "Dashboard" }).click();
+    await expect(page).toHaveURL(new RegExp("/admin$"));
+
+    await page.goto("/admin/services");
+    await expect(page.getByRole("textbox", { name: "Name" }).nth(1)).toHaveValue(
+      "Saved on navigate"
+    );
   });
 });
 

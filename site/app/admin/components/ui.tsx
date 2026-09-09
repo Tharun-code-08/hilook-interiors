@@ -276,6 +276,35 @@ export function Banner({
 }
 
 /**
+ * Autosave state for the edit-in-place lists.
+ *
+ * These lists have no Save button — edits persist on their own a moment after
+ * you stop typing. That is only trustworthy if the panel says so, otherwise
+ * the operator has no way to tell a saved edit from one still sitting in a
+ * debounce. aria-live so the acknowledgement is announced rather than purely
+ * visual, and polite so it never interrupts.
+ */
+export function SaveIndicator({ status }: { status: "idle" | "saving" | "saved" | "error" }) {
+  const text =
+    status === "saving"
+      ? "Saving…"
+      : status === "saved"
+        ? "All changes saved"
+        : status === "error"
+          ? "Not saved"
+          : "";
+
+  return (
+    <span
+      className={status === "error" ? "ad-savestate ad-savestate--error" : "ad-savestate"}
+      aria-live="polite"
+    >
+      {text}
+    </span>
+  );
+}
+
+/**
  * The panel's one loading state.
  *
  * role="status" so a screen reader is told the region is busy instead of

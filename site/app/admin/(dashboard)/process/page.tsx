@@ -5,6 +5,7 @@ import type { ProcessStep } from "@/lib/types";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
 import { jsonBody, useMutation } from "../components/useMutation";
+import { useAutosave } from "../components/useAutosave";
 import {
   Badge,
   Button,
@@ -12,6 +13,7 @@ import {
   EmptyState,
   Loading,
   PageHeader,
+  SaveIndicator,
   TextArea,
   TextField,
 } from "../../components/ui";
@@ -22,6 +24,12 @@ export default function AdminProcessPage() {
   const [form, setForm] = useState({ title: "", body: "" });
   const { mutate } = useMutation();
   const confirm = useConfirm();
+
+  const autosave = useAutosave({
+    endpoint: (id) => `/api/admin/process/${id}`,
+    getSnapshot: () => steps,
+    restore: setSteps,
+  });
 
   async function load() {
     setLoading(true);
@@ -48,19 +56,9 @@ export default function AdminProcessPage() {
     load();
   }
 
-  async function updateStep(id: string, patch: Partial<ProcessStep>) {
-    // Snapshot before the optimistic write so a rejected save is undone
-    // rather than left on screen as though it succeeded.
-    const previous = steps;
-    await mutate(
-      `/api/admin/process/${id}`,
-      { method: "PUT", ...jsonBody(patch) },
-      {
-        optimistic: () =>
-          setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s))),
-        rollback: () => setSteps(previous),
-      }
-    );
+  function updateStep(id: string, patch: Partial<ProcessStep>) {
+    setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    autosave.save(id, patch);
   }
 
   async function removeStep(id: string) {
@@ -89,7 +87,8 @@ export default function AdminProcessPage() {
     <>
       <PageHeader
         title="Process steps"
-        description="Powers the “How We Work” section on the public site. Steps are numbered automatically in the order they appear here."
+        description="Powers the “How We Work” section on the public site. Steps are numbered automatically in the order they appear here. Edits below save on their own."
+        actions={<SaveIndicator status={autosave.status} />}
       />
 
       <div className="ad-stack-lg">
