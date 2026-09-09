@@ -34,7 +34,7 @@ const SECTIONS = [
     label: "Account",
     links: [
       { href: "/admin/users", label: "Admin users" },
-      { href: "/admin/password", label: "Password" },
+      { href: "/admin/password", label: "Security" },
     ],
   },
 ] as const;

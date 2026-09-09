@@ -163,6 +163,52 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Sessions and revocation
+
+The session cookie is a JWT, but it is not self-contained: each one carries a
+`jti` matching a row in `sessions`, and every authenticated request checks
+that row is still live. That is what makes revocation possible at all.
+
+Before it, signing out only deleted the cookie. A token captured beforehand —
+off a shared machine, a proxy log, a laptop left open — kept working for the
+rest of its seven days, and changing a password did nothing to sessions
+elsewhere. Both are covered by e2e tests that hold a copy of the token and try
+to use it afterwards, because a cleared cookie and a revoked token look
+identical from the browser.
+
+- **Signing out** revokes that session.
+- **Changing a password** mints a fresh session for the current browser and
+  revokes every other one, including the old session on this device. Someone
+  changing their password because they think it is compromised gets the
+  attacker signed out, which is the point.
+- **Removing an admin account** revokes its sessions.
+- **Account security** (`/admin/password`) lists signed-in devices with their
+  last-active time and address, and can end any one of them or all the others.
+
+### Content-Security-Policy
+
+`script-src` carries a per-request nonce rather than `'unsafe-inline'`. That
+directive is the one that decides whether an injected `<script>` executes;
+with it present the rest of the policy is largely decoration.
+
+The catch is that a nonce only works when the HTML was produced by the request
+that minted it. **Any statically prerendered page comes out with unnonced
+scripts and every one of them is blocked** — and it fails quietly. `/admin/login`
+rendered an empty shell with no way to sign in, and the 404 page rendered
+nothing at all, both still returning normal status codes. Both routes are now
+`force-dynamic`, and `tests/e2e/public.spec.ts` loads a route of each shape and
+fails on any CSP violation or an empty body. Add a static page and that test is
+what will tell you.
+
+Note that route-segment config like `export const dynamic` is ignored in a
+`"use client"` file — that is why the sign-in page is split into `page.tsx`
+(server, carries the config) and `LoginForm.tsx` (client).
+
+`style-src` still needs `'unsafe-inline'` and says so in the policy comments:
+next/font inlines `@font-face`, the public components style themselves with
+React style objects, and a nonce cannot cover a style _attribute_, only a
+`<style>` element.
+
 ### Saving
 
 The edit-in-place lists (Portfolio, Services, Process, Reviews) have no Save

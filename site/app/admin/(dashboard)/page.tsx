@@ -196,6 +196,7 @@ const ACTION_LABEL: Record<string, string> = {
   reorder: "reordered",
   upload: "uploaded",
   export: "exported",
+  "session.revoke": "revoked a session",
 };
 
 function ActivityFeed({ entries }: { entries: AuditEntry[] }) {

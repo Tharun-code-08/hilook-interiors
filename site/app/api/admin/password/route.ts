@@ -7,6 +7,7 @@ import { parseBody, passwordChangeSchema } from "@/lib/validation";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request";
 import { tryRecordAudit } from "@/lib/audit";
+import { createSession, revokeAllForUser } from "@/lib/repos/sessions";
 
 export async function POST(req: NextRequest) {
   const session = await getSessionUser();
@@ -43,20 +44,34 @@ export async function POST(req: NextRequest) {
 
   await setPassword(user.id, newPassword);
 
+  // A new session for this browser, then revoke every other one the account
+  // has — including the one that made this request.
+  //
+  // Changing a password is how someone responds to thinking their credential
+  // is compromised, so it has to end the attacker's access, not just change
+  // what a future sign-in needs. Rotating this browser's session id too means
+  // a token captured before the change is dead even on the device that made
+  // it. The operator stays signed in here and nowhere else.
+  const next = await createSession({
+    userId: user.id,
+    userAgent: req.headers.get("user-agent"),
+    ip,
+  });
+  const endedElsewhere = await revokeAllForUser(user.id, next.id);
+
   await tryRecordAudit({
     actor: session,
     action: "password.change",
     entity: "user",
     entityId: user.id,
+    detail: endedElsewhere > 0 ? `ended ${endedElsewhere} other session(s)` : undefined,
     ip,
   });
 
-  // Re-issue the session: the operator just proved they hold the credential,
-  // so refreshing its expiry here is the natural point.
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, endedElsewhere });
   res.cookies.set(
     SESSION_COOKIE,
-    signSession({ sub: user.id, username: user.username, role: user.role }),
+    signSession({ sub: user.id, username: user.username, role: user.role, jti: next.id }),
     {
       httpOnly: true,
       sameSite: "lax",

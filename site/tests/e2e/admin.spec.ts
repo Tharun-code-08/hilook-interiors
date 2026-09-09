@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, request, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 /**
@@ -256,6 +256,51 @@ test.describe("public endpoint hardening", () => {
 
     // 200 on purpose: telling a bot which check it tripped teaches evasion.
     expect(res.ok()).toBe(true);
+  });
+});
+
+/**
+ * Session revocation.
+ *
+ * The session cookie is a JWT, so for most of this project's life signing out
+ * only deleted the cookie — a token captured beforehand stayed valid for the
+ * rest of its seven days. These tests hold a copy of the token and try to use
+ * it after the fact, because that is the only way to tell real revocation from
+ * a cleared cookie.
+ */
+test.describe("session revocation", () => {
+  test("a token captured before sign-out stops working after it", async ({ page, context }) => {
+    await signIn(page);
+
+    const before = (await context.cookies()).find((c) => c.name === "hilook_session");
+    expect(before?.value, "expected a session cookie after signing in").toBeTruthy();
+
+    // Same token, its own request context — nothing shared with the browser
+    // beyond the value itself, exactly like a copy taken off a shared machine.
+    const stolen = await request.newContext({
+      baseURL: page.url().split("/admin")[0],
+      extraHTTPHeaders: { Cookie: `hilook_session=${before!.value}` },
+    });
+
+    expect((await stolen.get("/api/admin/sessions")).status()).toBe(200);
+
+    await page.getByRole("button", { name: /log out/i }).click();
+    await expect(page).toHaveURL(new RegExp("/admin/login"));
+
+    expect(
+      (await stolen.get("/api/admin/sessions")).status(),
+      "the captured token should be dead after sign-out"
+    ).toBe(401);
+
+    await stolen.dispose();
+  });
+
+  test("the signed-in device is listed and can be reviewed", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/admin/password");
+
+    await expect(page.getByRole("heading", { name: "Signed-in devices" })).toBeVisible();
+    await expect(page.getByText("This device")).toBeVisible();
   });
 });
 

@@ -12,7 +12,8 @@ export type AuditAction =
   | "delete"
   | "reorder"
   | "upload"
-  | "export";
+  | "export"
+  | "session.revoke";
 
 /**
  * Audit writes must never fail the operation they describe — a database

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Banner, Button, Card, PageHeader, TextField } from "../../components/ui";
+import SessionList from "../components/SessionList";
 import { adminError, adminFetch } from "@/lib/admin-client";
 
 export default function ChangePasswordPage() {
@@ -77,16 +78,16 @@ export default function ChangePasswordPage() {
   return (
     <>
       <PageHeader
-        title={forced ? "Set a new password" : "Change password"}
+        title={forced ? "Set a new password" : "Account security"}
         description={
           forced
             ? "This account is still using the password it was created with. Choose your own before continuing."
-            : "Choose a new password for your account. You’ll stay signed in."
+            : "Change your password and review the devices signed in to this account."
         }
       />
 
-      <div className="ad-narrow">
-        <Card>
+      <div className="ad-stack-lg">
+        <Card title="Change password">
           <form onSubmit={onSubmit} className="ad-stack">
             <TextField
               label="Current password"
@@ -129,6 +130,11 @@ export default function ChangePasswordPage() {
             </div>
           </form>
         </Card>
+
+        {/* Not shown during the forced first change: the operator has one job
+            on that screen, and a device list they cannot act on usefully yet
+            is noise in front of it. */}
+        {!forced && <SessionList />}
       </div>
     </>
   );

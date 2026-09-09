@@ -69,12 +69,22 @@ export type SessionPayload = {
   sub: string; // user id
   username: string;
   role: AdminUser["role"];
+  /** Session record id. Present on every token minted since revocation. */
+  jti?: string;
 };
 
 export function signSession(payload: SessionPayload): string {
-  return jwt.sign(payload, secret(), { expiresIn: "7d" });
+  const { jti, ...claims } = payload;
+  return jwt.sign(claims, secret(), { expiresIn: "7d", ...(jti ? { jwtid: jti } : {}) });
 }
 
+/**
+ * Signature and expiry only.
+ *
+ * On its own this is not enough to authenticate a request — it cannot tell a
+ * live session from one that was signed out or revoked, because that fact
+ * lives in the database rather than in the token. Use getSessionUser.
+ */
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
     return jwt.verify(token, secret()) as SessionPayload;
@@ -83,10 +93,37 @@ export function verifySessionToken(token: string): SessionPayload | null {
   }
 }
 
-/** Server Components / Route Handlers only (reads the httpOnly cookie). */
+/**
+ * The signed-in user for this request, or null.
+ *
+ * Two checks, not one: the token has to verify, *and* its session record has
+ * to still be live. The second is what makes signing out, revoking a device,
+ * and changing a password actually take effect — without it the token stays
+ * good for its full seven days no matter what happens server-side.
+ *
+ * Server Components and Route Handlers only (reads the httpOnly cookie).
+ */
 export async function getSessionUser(): Promise<SessionPayload | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return verifySessionToken(token);
+
+  const payload = verifySessionToken(token);
+  if (!payload) return null;
+
+  // Tokens minted before sessions existed carry no jti. Rejecting them signs
+  // those operators out once; accepting them would leave a permanent bypass
+  // of every revocation path this adds.
+  if (!payload.jti) return null;
+
+  // Imported here rather than at module scope: middleware.ts pulls the cookie
+  // name out of this module's sibling, and dragging the database client into
+  // that graph would break the Edge build.
+  const { findLiveSession, touchSession } = await import("./repos/sessions");
+
+  const session = await findLiveSession(payload.jti);
+  if (!session || session.userId !== payload.sub) return null;
+
+  await touchSession(session);
+  return payload;
 }

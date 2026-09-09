@@ -8,6 +8,7 @@ import { clientIp } from "@/lib/request";
 import { checkRateLimit, clearRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { loginSchema, parseBody } from "@/lib/validation";
 import { tryRecordAudit } from "@/lib/audit";
+import { createSession, pruneExpiredSessions } from "@/lib/repos/sessions";
 
 /**
  * A hash of a value nobody will submit, so verifying an unknown username
@@ -59,6 +60,17 @@ export async function POST(req: NextRequest) {
   await Promise.all([clearRateLimit("login", ipKey), clearRateLimit("login", userKey)]);
   await recordLogin(user.id);
 
+  // The record the token will point at. Without it the token would be
+  // self-contained and nothing could take it back — see lib/repos/sessions.
+  const session = await createSession({
+    userId: user.id,
+    userAgent: req.headers.get("user-agent"),
+    ip,
+  });
+
+  // Opportunistic housekeeping; sign-in is infrequent and already writing.
+  await pruneExpiredSessions().catch(() => {});
+
   await tryRecordAudit({
     actor: { sub: user.id, username: user.username },
     action: "login",
@@ -80,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   res.cookies.set(
     SESSION_COOKIE,
-    signSession({ sub: user.id, username: user.username, role: user.role }),
+    signSession({ sub: user.id, username: user.username, role: user.role, jti: session.id }),
     { ...cookieOptions, httpOnly: true }
   );
 

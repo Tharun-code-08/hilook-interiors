@@ -192,6 +192,41 @@ export const users = sqliteTable(
   (t) => [uniqueIndex("users_username_idx").on(sql`lower(${t.username})`)]
 );
 
+/**
+ * Server-side session records.
+ *
+ * The session cookie is a JWT, which is self-contained: the server could
+ * verify one without storing anything, and that is what it did. The cost is
+ * that nothing could ever take a token back. Signing out only deleted the
+ * cookie, so a token captured beforehand — off a shared machine, a proxy log,
+ * a stolen laptop — stayed valid for the rest of its seven days. Changing a
+ * password did not end sessions elsewhere either, which is the one thing
+ * people expect a password change to do.
+ *
+ * Each token now carries a jti matching a row here, and verification checks
+ * the row is present, unrevoked and unexpired. That makes revocation a single
+ * UPDATE, and it is what the sessions screen and "sign out everywhere" are
+ * built on.
+ */
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    /** The jti embedded in the token. */
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    createdAt: integer("created_at").notNull().default(now),
+    /** Throttled — written at most once every few minutes, not per request. */
+    lastSeenAt: integer("last_seen_at").notNull().default(now),
+    expiresAt: integer("expires_at").notNull(),
+    /** Set on sign-out, on revoke, and on a password change elsewhere. */
+    revokedAt: integer("revoked_at"),
+    /** Enough to recognise a session in the list; not a fingerprint. */
+    userAgent: text("user_agent"),
+    ip: text("ip"),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId), index("sessions_expires_idx").on(t.expiresAt)]
+);
+
 export const auditLog = sqliteTable(
   "audit_log",
   {

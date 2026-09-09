@@ -8,6 +8,13 @@
       "when": 1788935141591,
       "tag": "0000_mushy_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788963709380,
+      "tag": "0001_purple_electro",
+      "breakpoints": true
     }
   ]
 }

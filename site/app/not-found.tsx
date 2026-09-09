@@ -1,6 +1,16 @@
 import Link from "next/link";
 import StatusPage from "./components/StatusPage";
 
+/**
+ * Rendered per request so it can carry the CSP nonce.
+ *
+ * Next prerenders this as the static /_not-found. Under the nonce policy in
+ * middleware.ts that HTML's inline scripts were baked without one, so every
+ * script was blocked and the page came out completely blank — a 404 that says
+ * nothing at all is worse than the soft-404 this project already fixed once.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Page not found",
 };

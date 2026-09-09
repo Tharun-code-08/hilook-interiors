@@ -224,6 +224,55 @@ test.describe("project routes", () => {
   });
 });
 
+/**
+ * Content-Security-Policy.
+ *
+ * script-src carries a per-request nonce instead of 'unsafe-inline', which is
+ * the directive that decides whether an injected <script> runs. A nonce only
+ * works when the HTML was produced by the request that minted it, so any page
+ * Next decides to prerender comes out with unnonced scripts and every one of
+ * them is blocked.
+ *
+ * That is not a loud failure. /admin/login rendered an empty shell with no way
+ * to sign in, and the 404 page rendered nothing at all, both while returning
+ * a perfectly normal status code. This is the test that catches it, and it has
+ * to run over a route of each shape: dynamic, streamed, 404, and the sign-in
+ * page that was static until it was made otherwise.
+ */
+test.describe("content security policy", () => {
+  const ROUTES = ["/", "/work", "/admin/login", "/work/no-such-project", "/no-such-page"];
+
+  for (const path of ROUTES) {
+    test(`${path} loads with no CSP violations`, async ({ page }) => {
+      const violations: string[] = [];
+      page.on("console", (message) => {
+        if (/Content Security Policy/i.test(message.text())) violations.push(message.text());
+      });
+
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+
+      expect(violations, violations.join("\n")).toEqual([]);
+
+      // A blocked bootstrap leaves the document standing but empty, so an
+      // empty body is the symptom to assert against — not just the absence of
+      // console noise.
+      const text = await page.evaluate(() => document.body.innerText.trim().length);
+      expect(text, "page rendered no text — scripts were probably blocked").toBeGreaterThan(0);
+    });
+  }
+
+  test("script-src does not allow unsafe-inline", async ({ request }) => {
+    const res = await request.get("/");
+    const csp = res.headers()["content-security-policy"] ?? "";
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+
+    expect(scriptSrc, "expected a script-src directive").toBeTruthy();
+    expect(scriptSrc).toContain("nonce-");
+    expect(scriptSrc).not.toContain("unsafe-inline");
+  });
+});
+
 test.describe("accessibility", () => {
   test("home page has no detectable WCAG A/AA violations", async ({ page }) => {
     await page.goto("/");

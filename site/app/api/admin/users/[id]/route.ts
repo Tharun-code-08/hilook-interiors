@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { countOwners, deleteUser, findUserById } from "@/lib/repos/operations";
 import { notFound, requireSession } from "@/lib/api";
 import { tryRecordAudit } from "@/lib/audit";
+import { revokeAllForUser } from "@/lib/repos/sessions";
 import { clientIp } from "@/lib/request";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -29,6 +30,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   await deleteUser(id);
+
+  // The account is gone, but its tokens are not: they verify on signature and
+  // would keep working until they expired. The dashboard layout happens to
+  // catch this by looking the user up, but every route handler would not —
+  // revoking here closes it at the source rather than relying on one caller.
+  await revokeAllForUser(id);
 
   await tryRecordAudit({
     actor: guard.session,
