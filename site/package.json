@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "frames:manifest": "node scripts/generate-frame-manifest.mjs",
-    "predev": "npm run frames:manifest && npm run db:migrate",
+    "predev": "node scripts/clean-stale-build.mjs && npm run frames:manifest && npm run db:migrate",
     "dev": "next dev",
     "prebuild": "npm run frames:manifest",
     "build": "next build",

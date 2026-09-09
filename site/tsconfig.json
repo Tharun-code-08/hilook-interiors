@@ -31,14 +31,17 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-devcheck/types/**/*.ts",
     ".next-e2e/types/**/*.ts",
     ".next-err/types/**/*.ts",
     ".next-lhci/types/**/*.ts",
+    ".next-perf/types/**/*.ts",
     ".next-preview/types/**/*.ts",
+    ".next-probe-prod/types/**/*.ts",
     ".next-sec/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-perf/types/**/*.ts"
+    ".next-probe-dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
