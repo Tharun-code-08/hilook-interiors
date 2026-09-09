@@ -24,6 +24,8 @@ data/e2e.db
 data/e2e.db-*
 data/lighthouse-e2e.db
 data/lighthouse-e2e.db-*
+data/admin-preview-e2e.db
+data/admin-preview-e2e.db-*
 playwright-report
 .lighthouseci
 test-results

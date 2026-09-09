@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { MediaItem } from "@/lib/types";
 import MediaLibraryModal from "./MediaLibraryModal";
 import { adminFetch } from "@/lib/admin-client";
+import { Button } from "../../components/ui";
 
 export default function MultiImagePicker({
   label,
@@ -51,142 +52,75 @@ export default function MultiImagePicker({
   }
 
   return (
-    <div>
-      <label
-        style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}
-      >
-        {label}
-      </label>
+    <div className="ad-field">
+      <span className="ad-label">{label}</span>
 
       {values.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
-            gap: "0.6rem",
-            marginBottom: "0.75rem",
-          }}
-        >
+        <div className="ad-media-grid ad-media-grid--sm">
           {values.map((url, i) => (
-            <div key={`${url}-${i}`} style={{ position: "relative" }}>
-              <div
-                style={{
-                  aspectRatio: "1",
-                  background: `center / cover no-repeat url(${url})`,
-                  border: "1px solid rgba(74,63,51,0.2)",
-                }}
-              />
-              {i === 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 3,
-                    left: 3,
-                    background: "rgba(20,16,12,0.65)",
-                    color: "#F8F2E8",
-                    fontSize: "0.58rem",
-                    padding: "0.1rem 0.35rem",
-                  }}
-                >
-                  Cover
-                </span>
-              )}
-              <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.3rem" }}>
-                <button
-                  type="button"
+            <div key={`${url}-${i}`} className="ad-stack-tight">
+              <div className="ad-thumb">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" loading="lazy" />
+                {/* The first image is what the public card and the project
+                    hero use, so it is worth naming rather than leaving the
+                    operator to infer it from position. */}
+                {i === 0 && <span className="ad-thumb-tag">Cover</span>}
+              </div>
+              <div className="ad-row ad-row--tight">
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
-                  title="Move earlier"
-                  style={{
-                    flex: 1,
-                    fontSize: "0.62rem",
-                    padding: "0.15rem",
-                    border: "1px solid rgba(74,63,51,0.24)",
-                    background: "transparent",
-                    cursor: i === 0 ? "default" : "pointer",
-                    opacity: i === 0 ? 0.4 : 1,
-                  }}
+                  aria-label={`Move image ${i + 1} earlier`}
                 >
                   ‹
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => move(i, 1)}
                   disabled={i === values.length - 1}
-                  title="Move later"
-                  style={{
-                    flex: 1,
-                    fontSize: "0.62rem",
-                    padding: "0.15rem",
-                    border: "1px solid rgba(74,63,51,0.24)",
-                    background: "transparent",
-                    cursor: i === values.length - 1 ? "default" : "pointer",
-                    opacity: i === values.length - 1 ? 0.4 : 1,
-                  }}
+                  aria-label={`Move image ${i + 1} later`}
                 >
                   ›
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="danger-quiet"
+                  size="sm"
                   onClick={() => removeAt(i)}
-                  title="Remove"
-                  style={{
-                    flex: 1,
-                    fontSize: "0.62rem",
-                    padding: "0.15rem",
-                    border: "1px solid #5A2630",
-                    color: "#5A2630",
-                    background: "transparent",
-                    cursor: "pointer",
-                  }}
+                  aria-label={`Remove image ${i + 1}`}
                 >
                   ✕
-                </button>
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-        <label
-          style={{
-            display: "inline-block",
-            background: "#B08A4A",
-            color: "#fff",
-            padding: "0.4rem 0.8rem",
-            fontSize: "0.72rem",
-            cursor: uploading ? "default" : "pointer",
-            opacity: uploading ? 0.6 : 1,
-          }}
-        >
-          {uploading ? "Uploading…" : "Add Image"}
+      <div className="ad-row">
+        <label className={`ad-btn ad-btn--secondary ad-btn--sm${uploading ? " is-busy" : ""}`}>
+          {uploading ? "Uploading…" : "Add image"}
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             onChange={onFileSelected}
-            style={{ display: "none" }}
+            className="ad-sr"
             disabled={uploading}
           />
         </label>
-        <button
-          type="button"
-          onClick={() => setLibraryOpen(true)}
-          style={{
-            background: "transparent",
-            border: "1px solid rgba(74,63,51,0.24)",
-            color: "#26231F",
-            padding: "0.4rem 0.8rem",
-            fontSize: "0.72rem",
-            cursor: "pointer",
-          }}
-        >
-          Add from Library
-        </button>
+        <Button variant="secondary" size="sm" onClick={() => setLibraryOpen(true)}>
+          Add from library
+        </Button>
       </div>
+
       {error && (
-        <p style={{ color: "#5A2630", fontSize: "0.72rem", marginTop: "0.4rem" }}>{error}</p>
+        <p className="ad-error" role="alert">
+          {error}
+        </p>
       )}
 
       {libraryOpen && (

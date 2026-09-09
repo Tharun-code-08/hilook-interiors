@@ -5,14 +5,7 @@ import type { Settings } from "@/lib/types";
 import ImagePicker from "../components/ImagePicker";
 import { adminFetch } from "@/lib/admin-client";
 import { jsonBody, useMutation } from "../components/useMutation";
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.6rem 0.75rem",
-  border: "1px solid rgba(74,63,51,0.2)",
-  fontSize: "0.85rem",
-  outline: "none",
-};
+import { Button, Card, Loading, PageHeader, TextArea, TextField } from "../../components/ui";
 
 type Field = { key: keyof Settings; label: string; area?: boolean };
 
@@ -140,98 +133,63 @@ export default function AdminContentPage() {
     }
   }
 
-  if (!settings) return <p style={{ color: "#777168" }}>Loading…</p>;
+  if (!settings) return <Loading />;
 
   return (
-    <div>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "0.5rem",
-          color: "#26231F",
-        }}
-      >
-        Content Editor
-      </h1>
-      <p style={{ fontSize: "0.82rem", color: "#777168", marginBottom: "2rem", maxWidth: "60ch" }}>
-        Every piece of copy on the public site lives here — nothing requires a code change.
-      </p>
+    <>
+      <PageHeader
+        title="Text & contact"
+        description="Every piece of copy on the public site lives here — nothing requires a code change."
+        actions={
+          <Button type="submit" form="content-form" variant="primary" disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        }
+      />
 
-      <form onSubmit={save} style={{ display: "grid", gap: "2.25rem", maxWidth: 640 }}>
+      <form id="content-form" onSubmit={save} className="ad-stack-lg">
         {GROUPS.map((group) => (
-          <div key={group.title}>
-            <h2
-              style={{
-                fontFamily: "Georgia, serif",
-                fontSize: "1.05rem",
-                color: "#26231F",
-                marginBottom: "0.3rem",
-              }}
-            >
-              {group.title}
-            </h2>
-            {group.description && (
-              <p style={{ fontSize: "0.78rem", color: "#777168", marginBottom: "0.9rem" }}>
-                {group.description}
-              </p>
-            )}
-            <div style={{ display: "grid", gap: "1.1rem" }}>
-              {group.fields.map((field) => (
-                <div key={field.key}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      color: "#5E5951",
-                      marginBottom: "0.35rem",
-                    }}
-                  >
-                    {field.label}
-                  </label>
-                  {field.area ? (
-                    <textarea
-                      rows={3}
-                      value={settings[field.key]}
-                      onChange={(e) => setSettings({ ...settings, [field.key]: e.target.value })}
-                      style={inputStyle}
-                    />
-                  ) : (
-                    <input
-                      value={settings[field.key]}
-                      onChange={(e) => setSettings({ ...settings, [field.key]: e.target.value })}
-                      style={inputStyle}
-                    />
-                  )}
-                </div>
-              ))}
+          <Card key={group.title} title={group.title} description={group.description}>
+            <div className="ad-stack">
+              {group.fields.map((field) =>
+                field.area ? (
+                  <TextArea
+                    key={field.key}
+                    label={field.label}
+                    rows={3}
+                    value={settings[field.key]}
+                    onChange={(e) => setSettings({ ...settings, [field.key]: e.target.value })}
+                  />
+                ) : (
+                  <TextField
+                    key={field.key}
+                    label={field.label}
+                    value={settings[field.key]}
+                    onChange={(e) => setSettings({ ...settings, [field.key]: e.target.value })}
+                  />
+                )
+              )}
               {group.title === "About" && (
                 <ImagePicker
-                  label="About Image"
+                  label="About image"
                   value={settings.aboutImage || null}
                   onChange={(url) => setSettings({ ...settings, aboutImage: url || "" })}
                 />
               )}
             </div>
-          </div>
+          </Card>
         ))}
 
-        <button
-          type="submit"
-          disabled={saving}
-          style={{
-            justifySelf: "start",
-            background: "#B08A4A",
-            color: "#fff",
-            border: "none",
-            padding: "0.7rem 1.6rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          {saving ? "Saving…" : "Save Changes"}
-        </button>
-        {saved && <p style={{ color: "#173F35", fontSize: "0.85rem" }}>Saved.</p>}
+        {/* Repeated at the foot as well as the header: this form is long
+            enough that the header button is off screen by the time you finish
+            editing the last group. */}
+        <div className="ad-row">
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+          {saved && <span className="ad-saved">Saved.</span>}
+        </div>
       </form>
-    </div>
+    </>
   );
 }

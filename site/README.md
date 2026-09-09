@@ -163,6 +163,33 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Design system
+
+The panel has its own stylesheet, `app/admin/admin.css`, loaded only on
+`/admin` by `app/admin/layout.tsx`, plus a small set of primitives in
+`app/admin/components/ui.tsx`. It deliberately does not use the public site's
+palette or typography: this is a tool someone works in, so it is neutral greys,
+a system font stack, dense rows, and one accent reserved for primary actions.
+The brand lives on the public site.
+
+It replaced 260 inline `style={{}}` objects spread across 20 files with no
+shared class between them. That is not only a tidiness problem — it is why
+`#B08A4A` ended up as a button fill in fourteen places despite the token
+comment in `globals.css` calling it decoration-only at 2.86:1, which is a
+WCAG AA failure. There was nothing to be consistent _with_.
+
+Every colour in `admin.css` is measured against the surface it sits on and
+annotated with its ratio, and the Playwright suite now runs axe over all
+eleven authenticated pages, not just the sign-in screen. Three inline styles
+remain, all of them bar widths computed from data — those cannot become
+classes, so `/admin` still needs `style-src 'unsafe-inline'`; the reduction
+narrows the surface rather than removing the directive.
+
+If you add a screen, use the primitives — `Button`, `TextField`, `Card`,
+`Badge` — rather than reaching for a hex value. `TextField` and friends also
+wire up `<label for>`, `aria-describedby` and `aria-invalid`, which is the
+part that is easy to forget and expensive to retrofit.
+
 ## What's simplified vs. a fully custom build
 
 - **Database:** SQLite via libSQL. Real transactions, indexes, and foreign

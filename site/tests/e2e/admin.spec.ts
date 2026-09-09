@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 /**
  * Admin flows.
@@ -250,4 +251,46 @@ test.describe("public endpoint hardening", () => {
     // 200 on purpose: telling a bot which check it tripped teaches evasion.
     expect(res.ok()).toBe(true);
   });
+});
+
+/**
+ * Accessibility across the authenticated panel.
+ *
+ * Only /admin/login was ever scanned, which is why roughly a dozen AA contrast
+ * failures sat in the dashboard for as long as they did: every admin button
+ * used the gold that globals.css marks decoration-only, at 2.86:1. The panel
+ * now has its own design system with measured colours, and this is what keeps
+ * it that way.
+ */
+test.describe("admin accessibility", () => {
+  const PAGES = [
+    "/admin",
+    "/admin/portfolio",
+    "/admin/services",
+    "/admin/process",
+    "/admin/reviews",
+    "/admin/awards",
+    "/admin/content",
+    "/admin/media",
+    "/admin/submissions",
+    "/admin/users",
+    "/admin/password",
+  ];
+
+  for (const path of PAGES) {
+    test(`${path} has no WCAG A/AA violations`, async ({ page }) => {
+      await signIn(page);
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+
+      expect(
+        results.violations,
+        results.violations.map((v) => `${v.id}: ${v.help}`).join("\n")
+      ).toEqual([]);
+    });
+  }
 });

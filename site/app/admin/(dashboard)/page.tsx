@@ -14,16 +14,17 @@ import type { AuditEntry } from "@/lib/types";
  *
  * What changed: each tile carries a period-over-period delta, and the funnel
  * makes the one question the business cares about legible — how many visits
- * turn into enquiries. Both are computed from data already being collected;
- * richer dimensions (unique visitors, device, referrer paths) need the event
- * log that Phase 2 introduces.
+ * turn into enquiries.
+ *
+ * Everything here is a single series, so it is all one hue: the accent is a
+ * magnitude encoding, not an identity one, and a second colour would imply a
+ * distinction that does not exist. Deltas are the exception — those are status,
+ * and they carry a glyph and a written direction so the meaning never rests on
+ * colour alone.
+ *
+ * A server component, so it uses the stylesheet's classes directly rather than
+ * the client primitives in app/admin/components/ui.tsx.
  */
-
-const CARD: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid rgba(74,63,51,0.16)",
-  padding: "1.5rem",
-};
 
 function StatCard({
   label,
@@ -37,64 +38,48 @@ function StatCard({
   delta?: number | null;
   hint?: string;
 }) {
+  const direction = delta == null ? null : delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+
   return (
-    <div style={CARD}>
-      <p
-        style={{
-          fontSize: "0.7rem",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#8A6A33",
-          marginBottom: "0.6rem",
-        }}
-      >
-        {label}
-      </p>
-      <div style={{ display: "flex", alignItems: "baseline", gap: "0.6rem", flexWrap: "wrap" }}>
-        <p
-          style={{
-            fontFamily: "Georgia, serif",
-            fontSize: "2rem",
-            color: "#26231F",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {value}
-        </p>
-        {delta !== undefined && delta !== null && (
+    <div className="ad-stat">
+      <p className="ad-stat-label">{label}</p>
+      <div className="ad-row">
+        <p className="ad-stat-value">{value}</p>
+        {direction && (
           <span
-            style={{
-              fontSize: "0.75rem",
-              fontVariantNumeric: "tabular-nums",
-              color: delta > 0 ? "#2F6B4F" : delta < 0 ? "#5A2630" : "#777168",
-            }}
+            className={
+              direction === "up"
+                ? "ad-delta ad-delta--up"
+                : direction === "down"
+                  ? "ad-delta ad-delta--down"
+                  : "ad-delta"
+            }
           >
-            {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} {Math.abs(delta)}%
+            <span aria-hidden>{direction === "up" ? "▲" : direction === "down" ? "▼" : "—"}</span>{" "}
+            {Math.abs(delta as number)}%
+            <span className="ad-sr">
+              {direction === "up" ? " increase" : direction === "down" ? " decrease" : " no change"}{" "}
+              on the previous period
+            </span>
           </span>
         )}
       </div>
-      {hint && <p style={{ fontSize: "0.72rem", color: "#777168", marginTop: "0.4rem" }}>{hint}</p>}
+      {hint && <p className="ad-stat-note">{hint}</p>}
     </div>
   );
 }
 
+/** One ranked row: a label, its value, and a bar showing share of the leader. */
 function Bar({ label, value, max }: { label: string; value: number; max: number }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
-    <div style={{ marginBottom: "0.9rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: "0.8rem",
-          marginBottom: "0.3rem",
-        }}
-      >
-        <span style={{ color: "#26231F", textTransform: "capitalize" }}>{label}</span>
-        <span style={{ color: "#777168", fontVariantNumeric: "tabular-nums" }}>{value}</span>
+    <div className="ad-bar-row">
+      <div className="ad-bar-head">
+        <span className="ad-bar-label">{label}</span>
+        <span className="ad-bar-value">{value}</span>
       </div>
-      <div style={{ background: "#EFEAE0", height: 6, borderRadius: 3 }}>
-        <div style={{ width: `${pct}%`, background: "#B08A4A", height: "100%", borderRadius: 3 }} />
+      <div className="ad-meter">
+        <div className="ad-meter-fill" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -102,65 +87,46 @@ function Bar({ label, value, max }: { label: string; value: number; max: number 
 
 function TrendChart({ days }: { days: { key: string; label: string; value: number }[] }) {
   const max = Math.max(1, ...days.map((d) => d.value));
+  const total = days.reduce((sum, d) => sum + d.value, 0);
+
+  // Every bar has a 2px floor so a quiet day is still a visible mark. With no
+  // data at all that floor draws fourteen identical bars, which reads as flat
+  // traffic rather than as no traffic — the one thing a chart must never do.
+  if (total === 0) {
+    return (
+      <div className="ad-empty">
+        <p className="ad-empty-title">No visits recorded yet</p>
+        Traffic appears here once the site is live and receiving visitors.
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "0.4rem", height: 120 }}>
+    <figure className="ad-trend">
+      <div className="ad-trend-plot">
         {days.map((d) => (
-          <div
-            key={d.key}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              height: "100%",
-              justifyContent: "flex-end",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "0.62rem",
-                color: "#777168",
-                marginBottom: "0.25rem",
-                whiteSpace: "nowrap",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {d.value || ""}
-            </span>
+          <div key={d.key} className="ad-trend-col" title={`${d.label}: ${d.value}`}>
+            <span className="ad-trend-value">{d.value || ""}</span>
             <div
-              title={`${d.label}: ${d.value}`}
-              style={{
-                width: "100%",
-                height: `${Math.max(2, (d.value / max) * 100)}%`,
-                background: "#B08A4A",
-                borderRadius: "2px 2px 0 0",
-              }}
+              className="ad-trend-bar"
+              style={{ height: `${Math.max(2, (d.value / max) * 100)}%` }}
             />
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem" }}>
+      <div className="ad-trend-axis">
         {days.map((d, i) => (
-          <span
-            key={d.key}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              textAlign: "center",
-              fontSize: "0.6rem",
-              color: "#A6A093",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
+          <span key={d.key} className="ad-trend-tick">
             {i % 2 === 0 ? d.label : ""}
           </span>
         ))}
       </div>
-    </div>
+      {/* The plot is decorative to a screen reader; this is the same data in
+          words, so the section is not a hole in the page. */}
+      <figcaption className="ad-sr">
+        {total} views across the last {days.length} days. Highest day: {max}.
+      </figcaption>
+    </figure>
   );
 }
 
@@ -188,7 +154,7 @@ function Funnel({
   const max = Math.max(1, visits);
 
   return (
-    <div>
+    <div className="ad-stack">
       {steps.map((step, i) => {
         const pctOfTop = Math.round((step.value / max) * 100);
         const previous = i > 0 ? steps[i - 1].value : null;
@@ -196,31 +162,20 @@ function Funnel({
           previous && previous > 0 ? Math.round((step.value / previous) * 100) : null;
 
         return (
-          <div key={step.label} style={{ marginBottom: "1rem" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "0.8rem",
-                marginBottom: "0.3rem",
-                gap: "0.5rem",
-              }}
-            >
-              <span style={{ color: "#26231F" }}>{step.label}</span>
-              <span style={{ color: "#777168", fontVariantNumeric: "tabular-nums" }}>
+          <div key={step.label} className="ad-bar-row">
+            <div className="ad-bar-head">
+              <span className="ad-bar-label">{step.label}</span>
+              <span className="ad-bar-value">
                 {step.value}
                 {conversion !== null && (
-                  <span style={{ color: "#A6A093" }}> · {conversion}% of previous</span>
+                  <span className="ad-muted"> · {conversion}% of previous</span>
                 )}
               </span>
             </div>
-            <div style={{ background: "#EFEAE0", height: 10 }}>
+            <div className="ad-meter ad-meter--tall">
               <div
-                style={{
-                  width: `${Math.max(pctOfTop, step.value > 0 ? 2 : 0)}%`,
-                  background: i === steps.length - 1 ? "#173F35" : "#B08A4A",
-                  height: "100%",
-                }}
+                className="ad-meter-fill"
+                style={{ width: `${Math.max(pctOfTop, step.value > 0 ? 2 : 0)}%` }}
               />
             </div>
           </div>
@@ -245,37 +200,21 @@ const ACTION_LABEL: Record<string, string> = {
 
 function ActivityFeed({ entries }: { entries: AuditEntry[] }) {
   if (entries.length === 0) {
-    return (
-      <p style={{ fontSize: "0.85rem", color: "#777168" }}>
-        Nothing yet. Changes made in the admin panel will appear here.
-      </p>
-    );
+    return <p className="ad-muted">Nothing yet. Changes made in the panel will appear here.</p>;
   }
 
   return (
-    <ul style={{ listStyle: "none", display: "grid", gap: "0.7rem" }}>
+    <ul className="ad-stack">
       {entries.map((entry) => (
-        <li
-          key={entry.id}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "1rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          <span style={{ color: "#26231F" }}>
-            <strong style={{ fontWeight: 600 }}>{entry.actorName}</strong>{" "}
-            {ACTION_LABEL[entry.action] ?? entry.action}{" "}
-            <span style={{ color: "#777168" }}>
+        <li key={entry.id} className="ad-activity">
+          <span>
+            <strong>{entry.actorName}</strong> {ACTION_LABEL[entry.action] ?? entry.action}{" "}
+            <span className="ad-muted">
               {entry.entity}
               {entry.detail ? ` — ${entry.detail}` : ""}
             </span>
           </span>
-          <time
-            dateTime={entry.at}
-            style={{ color: "#A6A093", whiteSpace: "nowrap", fontSize: "0.75rem" }}
-          >
+          <time dateTime={entry.at} className="ad-muted">
             {new Date(entry.at).toLocaleDateString(undefined, {
               month: "short",
               day: "numeric",
@@ -332,170 +271,150 @@ export default async function AdminDashboardPage() {
   const recentActivity = activity.filter((entry) => entry.action !== "login.failed").slice(0, 8);
 
   return (
-    <div>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "0.35rem",
-          color: "#26231F",
-        }}
-      >
-        Dashboard
-      </h1>
-      <p style={{ fontSize: "0.82rem", color: "#777168", marginBottom: "1.75rem" }}>
-        Deltas compare the last 7 days with the 7 before.
-      </p>
+    <>
+      <header className="ad-page-head">
+        <div>
+          <h1 className="ad-page-title">Dashboard</h1>
+          <p className="ad-page-sub">Deltas compare the last 7 days with the 7 before.</p>
+        </div>
+      </header>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-          gap: "1rem",
-          marginBottom: "2.5rem",
-        }}
-      >
-        <StatCard
-          label="Views (7 days)"
-          value={analytics.viewsLast7}
-          delta={percentChange(analytics.viewsLast7, analytics.viewsPrior7)}
-          hint={`${analytics.totalViews} all time`}
-        />
-        <StatCard
-          label="Enquiries (7 days)"
-          value={submissionsLast7}
-          delta={percentChange(submissionsLast7, submissionsPrior7)}
-          hint={`${submissions.total} all time`}
-        />
-        <StatCard
-          label="Unique visitors (7 days)"
-          value={analytics.uniqueLast7}
-          delta={percentChange(analytics.uniqueLast7, analytics.uniquePrior7)}
-          hint="Daily-salted hash — no IP stored"
-        />
-        <StatCard
-          label="Unread enquiries"
-          value={unread}
-          hint={unread > 0 ? "Waiting on a reply" : "All caught up"}
-        />
-        <StatCard
-          label="Published projects"
-          value={projects.length}
-          hint={`${reviews.filter((r) => r.approved).length} approved reviews`}
-        />
-      </div>
-
-      {unread > 0 && (
-        <Link
-          href="/admin/submissions"
-          style={{
-            display: "block",
-            background: "#26231F",
-            color: "#F4F1EA",
-            padding: "0.9rem 1.25rem",
-            fontSize: "0.85rem",
-            textDecoration: "none",
-            marginBottom: "1.5rem",
-          }}
-        >
-          {unread === 1 ? "1 enquiry is" : `${unread} enquiries are`} waiting for a reply →
-        </Link>
-      )}
-
-      <div style={{ ...CARD, marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "0.95rem", marginBottom: "1.4rem", color: "#26231F" }}>
-          Visits — last 14 days
-        </h2>
-        <TrendChart days={trend} />
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: "1.5rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <div style={CARD}>
-          <h2 style={{ fontSize: "0.95rem", marginBottom: "0.4rem", color: "#26231F" }}>
-            Enquiry funnel
-          </h2>
-          <p style={{ fontSize: "0.72rem", color: "#777168", marginBottom: "1.1rem" }}>
-            All-time proportions, not a tracked cohort.
-          </p>
-          <Funnel
-            visits={analytics.totalViews}
-            reachedContact={analytics.reachedContact}
-            submitted={submissions.total}
+      <div className="ad-stack-lg">
+        <div className="ad-stats">
+          <StatCard
+            label="Views (7 days)"
+            value={analytics.viewsLast7}
+            delta={percentChange(analytics.viewsLast7, analytics.viewsPrior7)}
+            hint={`${analytics.totalViews} all time`}
+          />
+          <StatCard
+            label="Enquiries (7 days)"
+            value={submissionsLast7}
+            delta={percentChange(submissionsLast7, submissionsPrior7)}
+            hint={`${submissions.total} all time`}
+          />
+          <StatCard
+            label="Unique visitors (7 days)"
+            value={analytics.uniqueLast7}
+            delta={percentChange(analytics.uniqueLast7, analytics.uniquePrior7)}
+            hint="Daily-salted hash — no IP stored"
+          />
+          <StatCard
+            label="Unread enquiries"
+            value={unread}
+            hint={unread > 0 ? "Waiting on a reply" : "All caught up"}
+          />
+          <StatCard
+            label="Published projects"
+            value={projects.length}
+            hint={`${reviews.filter((r) => r.approved).length} approved reviews`}
           />
         </div>
 
-        <div style={CARD}>
-          <h2 style={{ fontSize: "0.95rem", marginBottom: "1.1rem", color: "#26231F" }}>
-            Recent activity
-          </h2>
-          <ActivityFeed entries={recentActivity} />
+        {unread > 0 && (
+          <div className="ad-banner ad-banner--info">
+            <span>
+              {unread === 1 ? "1 enquiry is" : `${unread} enquiries are`} waiting for a reply.
+            </span>
+            <Link href="/admin/submissions">Open the inbox →</Link>
+          </div>
+        )}
+
+        <section className="ad-card">
+          <div className="ad-card-head">
+            <h2 className="ad-card-title">Visits — last 14 days</h2>
+          </div>
+          <div className="ad-card-body">
+            <TrendChart days={trend} />
+          </div>
+        </section>
+
+        <div className="ad-cols">
+          <section className="ad-card">
+            <div className="ad-card-head">
+              <div>
+                <h2 className="ad-card-title">Enquiry funnel</h2>
+                <p className="ad-card-sub">All-time proportions, not a tracked cohort.</p>
+              </div>
+            </div>
+            <div className="ad-card-body">
+              <Funnel
+                visits={analytics.totalViews}
+                reachedContact={analytics.reachedContact}
+                submitted={submissions.total}
+              />
+            </div>
+          </section>
+
+          <section className="ad-card">
+            <div className="ad-card-head">
+              <h2 className="ad-card-title">Recent activity</h2>
+            </div>
+            <div className="ad-card-body">
+              <ActivityFeed entries={recentActivity} />
+            </div>
+          </section>
         </div>
+
+        <div className="ad-cols">
+          <section className="ad-card">
+            <div className="ad-card-head">
+              <h2 className="ad-card-title">Popular sections</h2>
+            </div>
+            <div className="ad-card-body">
+              {analytics.sections.length === 0 ? (
+                <p className="ad-muted">No section views recorded yet.</p>
+              ) : (
+                analytics.sections.map((s) => (
+                  <Bar key={s.name} label={s.name} value={s.value} max={maxSection} />
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="ad-card">
+            <div className="ad-card-head">
+              <h2 className="ad-card-title">Devices</h2>
+            </div>
+            <div className="ad-card-body">
+              {analytics.devices.length === 0 ? (
+                <p className="ad-muted">No device data yet.</p>
+              ) : (
+                analytics.devices.map((d) => (
+                  <Bar key={d.name} label={d.name} value={d.value} max={maxDevice} />
+                ))
+              )}
+              {analytics.browsers.length > 0 && (
+                <p className="ad-stat-note">
+                  Top browsers: {analytics.browsers.map((b) => `${b.name} (${b.value})`).join(", ")}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="ad-card">
+            <div className="ad-card-head">
+              <h2 className="ad-card-title">Traffic sources</h2>
+            </div>
+            <div className="ad-card-body">
+              {analytics.referrers.length === 0 ? (
+                <p className="ad-muted">
+                  No referrer data yet — direct visits aren&rsquo;t attributed to a source.
+                </p>
+              ) : (
+                analytics.referrers.map((r) => (
+                  <Bar key={r.host} label={r.host} value={r.value} max={maxReferrer} />
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        <p className="ad-page-sub">
+          Collected first-party as visitors load the site — no external tracker. Page views are
+          counted server-side; section views fire once each section scrolls into view.
+        </p>
       </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: "1.5rem",
-        }}
-      >
-        <div style={CARD}>
-          <h2 style={{ fontSize: "0.95rem", marginBottom: "1.1rem", color: "#26231F" }}>
-            Popular sections
-          </h2>
-          {analytics.sections.length === 0 ? (
-            <p style={{ fontSize: "0.85rem", color: "#777168" }}>No section views recorded yet.</p>
-          ) : (
-            analytics.sections.map((s) => (
-              <Bar key={s.name} label={s.name} value={s.value} max={maxSection} />
-            ))
-          )}
-        </div>
-
-        <div style={CARD}>
-          <h2 style={{ fontSize: "0.95rem", marginBottom: "1.1rem", color: "#26231F" }}>Devices</h2>
-          {analytics.devices.length === 0 ? (
-            <p style={{ fontSize: "0.85rem", color: "#777168" }}>No device data yet.</p>
-          ) : (
-            analytics.devices.map((d) => (
-              <Bar key={d.name} label={d.name} value={d.value} max={maxDevice} />
-            ))
-          )}
-          {analytics.browsers.length > 0 && (
-            <p style={{ fontSize: "0.75rem", color: "#777168", marginTop: "1rem" }}>
-              Top browsers: {analytics.browsers.map((b) => `${b.name} (${b.value})`).join(", ")}
-            </p>
-          )}
-        </div>
-
-        <div style={CARD}>
-          <h2 style={{ fontSize: "0.95rem", marginBottom: "1.1rem", color: "#26231F" }}>
-            Traffic sources
-          </h2>
-          {analytics.referrers.length === 0 ? (
-            <p style={{ fontSize: "0.85rem", color: "#777168" }}>
-              No referrer data yet — direct visits aren&rsquo;t attributed to a source.
-            </p>
-          ) : (
-            analytics.referrers.map((r) => (
-              <Bar key={r.host} label={r.host} value={r.value} max={maxReferrer} />
-            ))
-          )}
-        </div>
-      </div>
-
-      <p style={{ fontSize: "0.78rem", color: "#777168", marginTop: "2rem", maxWidth: "60ch" }}>
-        Collected first-party as visitors load the site — no external tracker. Page views are
-        counted server-side; section views fire once each section scrolls into view. Unique visitors
-        and device breakdown need the event log introduced in Phase 2.
-      </p>
-    </div>
+    </>
   );
 }

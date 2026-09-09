@@ -5,15 +5,17 @@ import type { PortfolioProject } from "@/lib/types";
 import MultiImagePicker from "../components/MultiImagePicker";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Loading,
+  PageHeader,
+  SelectField,
+  TextArea,
+  TextField,
+} from "../../components/ui";
 import { jsonBody, useMutation } from "../components/useMutation";
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.55rem 0.7rem",
-  border: "1px solid rgba(74,63,51,0.2)",
-  fontSize: "0.85rem",
-  outline: "none",
-};
 
 type PortfolioForm = {
   title: string;
@@ -124,166 +126,126 @@ export default function AdminPortfolioPage() {
   }
 
   return (
-    <div>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "1.75rem",
-          color: "#26231F",
-        }}
-      >
-        Portfolio Management
-      </h1>
+    <>
+      <PageHeader
+        title="Portfolio"
+        description="Projects shown on the home page and at /work. Drag a card to reorder — the order here is the order visitors see."
+      />
 
-      <form
-        onSubmit={addProject}
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(74,63,51,0.16)",
-          padding: "1.5rem",
-          marginBottom: "2rem",
-          display: "grid",
-          gap: "0.8rem",
-          maxWidth: 560,
-        }}
-      >
-        <p style={{ fontSize: "0.9rem", fontWeight: 600, color: "#26231F" }}>Add Project</p>
-        <input
-          placeholder="Project title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          style={inputStyle}
-        />
-        <select
-          value={form.category}
-          onChange={(e) =>
-            setForm({ ...form, category: e.target.value as "Residential" | "Commercial" })
-          }
-          style={inputStyle}
-        >
-          <option value="Residential">Residential</option>
-          <option value="Commercial">Commercial</option>
-        </select>
-        <textarea
-          placeholder="Description"
-          rows={3}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          style={inputStyle}
-        />
-        <MultiImagePicker
-          label="Project Images"
-          values={form.images}
-          onChange={(images) => setForm({ ...form, images })}
-        />
-        <button
-          type="submit"
-          style={{
-            justifySelf: "start",
-            background: "#B08A4A",
-            color: "#fff",
-            border: "none",
-            padding: "0.6rem 1.4rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          Add Project
-        </button>
-      </form>
-
-      {loading ? (
-        <p style={{ color: "#777168" }}>Loading…</p>
-      ) : (
-        <div style={{ display: "grid", gap: "0.75rem" }}>
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              draggable
-              onDragStart={() => setDragId(p.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => onDrop(p.id)}
-              style={{
-                background: "#fff",
-                border: "1px solid rgba(74,63,51,0.16)",
-                padding: "1rem 1.25rem",
-                cursor: "grab",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "24px 1fr auto",
-                  alignItems: "center",
-                  gap: "1rem",
-                  marginBottom: "0.9rem",
-                }}
-              >
-                <span style={{ color: "#B08A4A", fontSize: "1rem" }} aria-hidden>
-                  ⋮⋮
-                </span>
-                <div>
-                  <input
-                    value={p.title}
-                    onChange={(e) => updateProject(p.id, { title: e.target.value })}
-                    style={{
-                      ...inputStyle,
-                      border: "none",
-                      padding: "0.2rem 0",
-                      fontWeight: 600,
-                      marginBottom: "0.2rem",
-                    }}
-                  />
-                  <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-                    <select
-                      value={p.category}
-                      onChange={(e) =>
-                        updateProject(p.id, {
-                          category: e.target.value as "Residential" | "Commercial",
-                        })
-                      }
-                      style={{ fontSize: "0.75rem" }}
-                    >
-                      <option value="Residential">Residential</option>
-                      <option value="Commercial">Commercial</option>
-                    </select>
-                    <input
-                      value={p.description}
-                      onChange={(e) => updateProject(p.id, { description: e.target.value })}
-                      style={{
-                        ...inputStyle,
-                        fontSize: "0.78rem",
-                        border: "none",
-                        color: "#777168",
-                      }}
-                    />
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteProject(p.id)}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #5A2630",
-                    color: "#5A2630",
-                    padding: "0.4rem 0.8rem",
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-              <MultiImagePicker
-                label="Project Images"
-                values={p.images}
-                onChange={(images) => updateProject(p.id, { images })}
+      <div className="ad-stack-lg">
+        <Card title="Add a project">
+          <form onSubmit={addProject} className="ad-stack">
+            <div className="ad-grid-2">
+              <TextField
+                label="Title"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
+              <SelectField
+                label="Category"
+                value={form.category}
+                onChange={(e) =>
+                  setForm({ ...form, category: e.target.value as "Residential" | "Commercial" })
+                }
+              >
+                <option value="Residential">Residential</option>
+                <option value="Commercial">Commercial</option>
+              </SelectField>
             </div>
-          ))}
-          {projects.length === 0 && (
-            <p style={{ color: "#777168" }}>No projects yet — add your first one above.</p>
-          )}
-        </div>
-      )}
-    </div>
+            <TextArea
+              label="Description"
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <MultiImagePicker
+              label="Project images"
+              values={form.images}
+              onChange={(images) => setForm({ ...form, images })}
+            />
+            <div className="ad-row">
+              <Button type="submit" variant="primary" disabled={!form.title.trim()}>
+                Add project
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        {loading ? (
+          <Loading />
+        ) : projects.length === 0 ? (
+          <Card>
+            <EmptyState title="No projects yet">Add your first one above.</EmptyState>
+          </Card>
+        ) : (
+          <div className="ad-stack">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                className="ad-card ad-draggable"
+                draggable
+                onDragStart={() => setDragId(p.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onDrop(p.id)}
+              >
+                <div className="ad-card-body ad-stack">
+                  <div className="ad-project-head">
+                    <span className="ad-grip" aria-hidden>
+                      ⋮⋮
+                    </span>
+                    <div className="ad-stack">
+                      <TextField
+                        label="Title"
+                        hiddenLabel
+                        seamless
+                        title
+                        value={p.title}
+                        onChange={(e) => updateProject(p.id, { title: e.target.value })}
+                      />
+                      <div className="ad-grid-2">
+                        <SelectField
+                          label="Category"
+                          hiddenLabel
+                          value={p.category}
+                          onChange={(e) =>
+                            updateProject(p.id, {
+                              category: e.target.value as "Residential" | "Commercial",
+                            })
+                          }
+                        >
+                          <option value="Residential">Residential</option>
+                          <option value="Commercial">Commercial</option>
+                        </SelectField>
+                        <TextField
+                          label="Description"
+                          hiddenLabel
+                          seamless
+                          value={p.description}
+                          onChange={(e) => updateProject(p.id, { description: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      variant="danger-quiet"
+                      size="sm"
+                      onClick={() => deleteProject(p.id)}
+                      aria-label={`Delete ${p.title}`}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+
+                  <MultiImagePicker
+                    label="Project images"
+                    values={p.images}
+                    onChange={(images) => updateProject(p.id, { images })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

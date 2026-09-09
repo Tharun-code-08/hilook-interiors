@@ -2,18 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Banner, Button, Card, PageHeader, TextField } from "../../components/ui";
 import { adminError, adminFetch } from "@/lib/admin-client";
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.65rem 0.75rem",
-  border: "1px solid rgba(74,63,51,0.28)",
-  borderRadius: 2,
-  fontSize: "0.9rem",
-  fontFamily: "inherit",
-  background: "#fff",
-  color: "#26231F",
-};
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -85,168 +75,61 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div style={{ maxWidth: 460 }}>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "0.5rem",
-          color: "#26231F",
-        }}
-      >
-        {forced ? "Set a new password" : "Change password"}
-      </h1>
+    <>
+      <PageHeader
+        title={forced ? "Set a new password" : "Change password"}
+        description={
+          forced
+            ? "This account is still using the password it was created with. Choose your own before continuing."
+            : "Choose a new password for your account. You’ll stay signed in."
+        }
+      />
 
-      <p
-        style={{ color: "#5E5951", fontSize: "0.9rem", lineHeight: 1.65, marginBottom: "1.75rem" }}
-      >
-        {forced
-          ? "This account is still using the password it was created with. Choose your own before continuing."
-          : "Choose a new password for your account. You'll stay signed in."}
-      </p>
+      <div className="ad-narrow">
+        <Card>
+          <form onSubmit={onSubmit} className="ad-stack">
+            <TextField
+              label="Current password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              error={fieldErrors.currentPassword?.[0]}
+            />
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: "1.1rem" }}>
-        <div>
-          <label
-            htmlFor="current-password"
-            style={{
-              display: "block",
-              fontSize: "0.8rem",
-              marginBottom: "0.35rem",
-              color: "#26231F",
-            }}
-          >
-            Current password
-          </label>
-          <input
-            id="current-password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            style={inputStyle}
-            aria-invalid={Boolean(fieldErrors.currentPassword)}
-          />
-          {fieldErrors.currentPassword && (
-            <p style={{ color: "#5A2630", fontSize: "0.78rem", marginTop: "0.35rem" }}>
-              {fieldErrors.currentPassword[0]}
-            </p>
-          )}
-        </div>
+            <TextField
+              label="New password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              hint="At least 12 characters. Length matters more than symbols — a phrase you’ll remember beats a short scramble."
+              error={tooShort ? "Too short — use at least 12 characters." : undefined}
+            />
 
-        <div>
-          <label
-            htmlFor="new-password"
-            style={{
-              display: "block",
-              fontSize: "0.8rem",
-              marginBottom: "0.35rem",
-              color: "#26231F",
-            }}
-          >
-            New password
-          </label>
-          <input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            style={inputStyle}
-            aria-describedby="new-password-hint"
-            aria-invalid={tooShort}
-          />
-          <p
-            id="new-password-hint"
-            style={{
-              color: tooShort ? "#5A2630" : "#777168",
-              fontSize: "0.78rem",
-              marginTop: "0.35rem",
-            }}
-          >
-            At least 12 characters. Length matters more than symbols — a phrase you'll remember
-            beats a short scramble.
-          </p>
-        </div>
+            <TextField
+              label="Confirm new password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={mismatch ? "Passwords don’t match." : undefined}
+            />
 
-        <div>
-          <label
-            htmlFor="confirm-password"
-            style={{
-              display: "block",
-              fontSize: "0.8rem",
-              marginBottom: "0.35rem",
-              color: "#26231F",
-            }}
-          >
-            Confirm new password
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={inputStyle}
-            aria-invalid={mismatch}
-          />
-          {mismatch && (
-            <p style={{ color: "#5A2630", fontSize: "0.78rem", marginTop: "0.35rem" }}>
-              Passwords don't match.
-            </p>
-          )}
-        </div>
+            {error && <Banner tone="danger">{error}</Banner>}
+            {status === "done" && <Banner tone="info">Password updated.</Banner>}
 
-        {error && (
-          <p
-            role="alert"
-            style={{
-              background: "#F6EDEE",
-              border: "1px solid #5A2630",
-              color: "#5A2630",
-              padding: "0.7rem 0.85rem",
-              fontSize: "0.82rem",
-            }}
-          >
-            {error}
-          </p>
-        )}
-
-        {status === "done" && (
-          <p
-            role="status"
-            style={{
-              background: "#EDF3F0",
-              border: "1px solid #173F35",
-              color: "#173F35",
-              padding: "0.7rem 0.85rem",
-              fontSize: "0.82rem",
-            }}
-          >
-            Password updated.
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          style={{
-            justifySelf: "start",
-            background: canSubmit ? "#26231F" : "#A6A093",
-            color: "#F4F1EA",
-            border: "none",
-            borderRadius: 2,
-            padding: "0.7rem 1.6rem",
-            fontSize: "0.8rem",
-            cursor: canSubmit ? "pointer" : "not-allowed",
-          }}
-        >
-          {status === "saving" ? "Saving…" : "Update password"}
-        </button>
-      </form>
-    </div>
+            <div className="ad-row">
+              <Button type="submit" variant="primary" disabled={!canSubmit}>
+                {status === "saving" ? "Saving…" : "Update password"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { MediaItem } from "@/lib/types";
 import MediaLibraryModal from "./MediaLibraryModal";
 import { adminFetch } from "@/lib/admin-client";
+import { Button } from "../../components/ui";
 
 async function uploadFile(file: File): Promise<string> {
   const formData = new FormData();
@@ -47,82 +48,48 @@ export default function ImagePicker({
   }
 
   return (
-    <div>
-      <label
-        style={{ display: "block", fontSize: "0.75rem", color: "#5E5951", marginBottom: "0.45rem" }}
-      >
-        {label}
-      </label>
-      <div style={{ display: "flex", gap: "0.9rem", alignItems: "flex-start" }}>
-        <div
-          style={{
-            width: 84,
-            height: 84,
-            flexShrink: 0,
-            background: value ? `center / cover no-repeat url(${value})` : "#EFEAE0",
-            border: "1px solid rgba(74,63,51,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {!value && <span style={{ fontSize: "0.62rem", color: "#A6A093" }}>No image</span>}
+    <div className="ad-field">
+      <span className="ad-label">{label}</span>
+      <div className="ad-picker">
+        <div className="ad-picker-preview">
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt="" />
+          ) : (
+            <span className="ad-muted">No image</span>
+          )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-            <label
-              style={{
-                display: "inline-block",
-                background: "#B08A4A",
-                color: "#fff",
-                padding: "0.4rem 0.8rem",
-                fontSize: "0.72rem",
-                cursor: uploading ? "default" : "pointer",
-                opacity: uploading ? 0.6 : 1,
-              }}
-            >
+
+        <div className="ad-stack">
+          <div className="ad-row">
+            {/* A label wrapping a hidden input, not a button: clicking a
+                <button> cannot open the file dialog without scripting it, and
+                the label does it natively and keeps keyboard access. */}
+            <label className={`ad-btn ad-btn--secondary ad-btn--sm${uploading ? " is-busy" : ""}`}>
               {uploading ? "Uploading…" : "Upload"}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 onChange={onFileSelected}
-                style={{ display: "none" }}
+                className="ad-sr"
                 disabled={uploading}
               />
             </label>
-            <button
-              type="button"
-              onClick={() => setLibraryOpen(true)}
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(74,63,51,0.24)",
-                color: "#26231F",
-                padding: "0.4rem 0.8rem",
-                fontSize: "0.72rem",
-                cursor: "pointer",
-              }}
-            >
-              Choose Existing
-            </button>
+            <Button variant="secondary" size="sm" onClick={() => setLibraryOpen(true)}>
+              Choose existing
+            </Button>
             {value && (
-              <button
-                type="button"
-                onClick={() => onChange(null)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid #5A2630",
-                  color: "#5A2630",
-                  padding: "0.4rem 0.8rem",
-                  fontSize: "0.72rem",
-                  cursor: "pointer",
-                }}
-              >
+              <Button variant="danger-quiet" size="sm" onClick={() => onChange(null)}>
                 Remove
-              </button>
+              </Button>
             )}
           </div>
-          {error && <p style={{ color: "#5A2630", fontSize: "0.72rem" }}>{error}</p>}
+          {error && (
+            <p className="ad-error" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       </div>
 

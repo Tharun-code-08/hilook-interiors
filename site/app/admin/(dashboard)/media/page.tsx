@@ -5,6 +5,7 @@ import type { MediaItem } from "@/lib/types";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
 import { useMutation } from "../components/useMutation";
+import { Button, Card, EmptyState, Loading, PageHeader } from "../../components/ui";
 
 export default function AdminMediaPage() {
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -74,113 +75,73 @@ export default function AdminMediaPage() {
   }
 
   return (
-    <div>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "1.75rem",
-          color: "#26231F",
-        }}
-      >
-        Media Library
-      </h1>
+    <>
+      <PageHeader
+        title="Media library"
+        description="JPEG, PNG, WebP, GIF or SVG, up to 8MB. Copy a URL to reuse an image anywhere else in the panel."
+        actions={
+          <label className={`ad-btn ad-btn--primary${uploading ? " is-busy" : ""}`}>
+            {uploading ? "Uploading…" : "Upload image"}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onUpload}
+              className="ad-sr"
+              disabled={uploading}
+            />
+          </label>
+        }
+      />
 
-      <div style={{ marginBottom: "2rem" }}>
-        <label
-          style={{
-            display: "inline-block",
-            background: "#B08A4A",
-            color: "#fff",
-            padding: "0.7rem 1.4rem",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-          }}
-        >
-          {uploading ? "Uploading…" : "Upload Image"}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={onUpload}
-            style={{ display: "none" }}
-            disabled={uploading}
-          />
-        </label>
-        {error && (
-          <p style={{ color: "#5A2630", fontSize: "0.8rem", marginTop: "0.6rem" }}>{error}</p>
-        )}
-        <p style={{ fontSize: "0.78rem", color: "#777168", marginTop: "0.6rem" }}>
-          JPEG, PNG, WebP, GIF or SVG, up to 8MB. Copy a URL below to use it in Portfolio or
-          Reviews.
+      {error && (
+        <p className="ad-error" role="alert">
+          {error}
         </p>
-      </div>
+      )}
 
       {loading ? (
-        <p style={{ color: "#777168" }}>Loading…</p>
+        <Loading />
       ) : media.length === 0 ? (
-        <p style={{ color: "#777168" }}>No media uploaded yet.</p>
+        <Card>
+          <EmptyState title="No media yet">
+            Upload the first image and it becomes available to every section.
+          </EmptyState>
+        </Card>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: "1rem",
-          }}
-        >
+        <div className="ad-media-grid">
           {media.map((item) => (
-            <div
-              key={item.id}
-              style={{ background: "#fff", border: "1px solid rgba(74,63,51,0.16)" }}
-            >
-              <div
-                style={{
-                  aspectRatio: "1",
-                  background: `center / cover no-repeat url(${item.url})`,
-                }}
-              />
-              <div style={{ padding: "0.6rem" }}>
-                <p
-                  style={{
-                    fontSize: "0.72rem",
-                    color: "#777168",
-                    marginBottom: "0.4rem",
-                    wordBreak: "break-all",
-                  }}
-                >
+            <figure key={item.id} className="ad-card ad-media-card">
+              <div className="ad-thumb">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={item.url} alt={item.filename} loading="lazy" />
+              </div>
+              <figcaption className="ad-media-meta">
+                <p className="ad-media-name" title={item.filename}>
                   {item.filename}
                 </p>
-                <div style={{ display: "flex", gap: "0.4rem" }}>
-                  <button
+                <div className="ad-row ad-row--tight">
+                  <Button
+                    size="sm"
                     onClick={() => copyUrl(item.url)}
-                    style={{
-                      fontSize: "0.68rem",
-                      padding: "0.3rem 0.5rem",
-                      border: "1px solid rgba(74,63,51,0.24)",
-                      background: "transparent",
-                      flex: 1,
-                    }}
+                    aria-label={`Copy the URL for ${item.filename}`}
                   >
                     Copy URL
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="danger-quiet"
+                    size="sm"
                     onClick={() => remove(item.id)}
-                    style={{
-                      fontSize: "0.68rem",
-                      padding: "0.3rem 0.5rem",
-                      border: "1px solid #5A2630",
-                      color: "#5A2630",
-                      background: "transparent",
-                    }}
+                    aria-label={`Delete ${item.filename}`}
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
-              </div>
-            </div>
+              </figcaption>
+            </figure>
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

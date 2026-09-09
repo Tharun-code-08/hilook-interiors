@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Button, TextField } from "../components/ui";
 
 /**
  * useSearchParams opts the tree into client-side rendering, which Next
@@ -68,120 +69,48 @@ function LoginForm() {
   return (
     // A landmark, not a bare div: axe flags content outside one because a
     // screen-reader user navigating by region would find nothing here.
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#26231F",
-        fontFamily: "Inter, system-ui, sans-serif",
-        padding: "1.5rem",
-      }}
-    >
+    <main className="ad-login">
       <form
+        className="ad-login-card ad-stack"
         aria-labelledby="admin-signin-heading"
         onSubmit={onSubmit}
-        style={{
-          width: "100%",
-          maxWidth: 360,
-          background: "#F4F1EA",
-          padding: "2.5rem",
-          borderRadius: 4,
-        }}
       >
-        <h1
-          id="admin-signin-heading"
-          style={{
-            fontFamily: "Georgia, serif",
-            fontSize: "1.4rem",
-            fontWeight: 400,
-            color: "#26231F",
-            marginBottom: "0.4rem",
-          }}
-        >
-          Hilook Interiors
-        </h1>
-        <p style={{ fontSize: "0.8rem", color: "var(--hi-ink-soft)", marginBottom: "2rem" }}>
-          Admin sign in
-        </p>
+        <div>
+          <h1 id="admin-signin-heading" className="ad-page-title">
+            Hilook Interiors
+          </h1>
+          <p className="ad-page-sub">Sign in to the admin panel.</p>
+        </div>
 
-        <label
-          htmlFor="admin-username"
-          style={{
-            display: "block",
-            fontSize: "0.75rem",
-            color: "#5E5951",
-            marginBottom: "0.4rem",
-          }}
-        >
-          Username
-        </label>
-        <input
-          id="admin-username"
+        <TextField
+          label="Username"
           name="username"
           autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          style={inputStyle}
         />
 
-        <label
-          htmlFor="admin-password"
-          style={{
-            display: "block",
-            fontSize: "0.75rem",
-            color: "#5E5951",
-            margin: "1rem 0 0.4rem",
-          }}
-        >
-          Password
-        </label>
-        <input
-          id="admin-password"
+        <TextField
+          label="Password"
           name="password"
           type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          style={inputStyle}
         />
 
         {error && (
-          <p role="alert" style={{ color: "#5A2630", fontSize: "0.8rem", marginTop: "1rem" }}>
+          <p className="ad-error" role="alert">
             {error}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            marginTop: "1.75rem",
-            width: "100%",
-            background: "var(--hi-accent-strong)",
-            color: "#F8F2E8",
-            border: "none",
-            padding: "0.8rem",
-            fontSize: "0.75rem",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-          }}
-        >
-          {loading ? "Signing in..." : "Sign In"}
-        </button>
+        <Button type="submit" variant="primary" block disabled={loading}>
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
       </form>
     </main>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.65rem 0.8rem",
-  border: "1px solid rgba(74,63,51,0.24)",
-  background: "#fff",
-  fontSize: "0.9rem",
-  outline: "none",
-};

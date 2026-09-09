@@ -5,16 +5,24 @@ import type { AwardItem } from "@/lib/types";
 import { adminFetch } from "@/lib/admin-client";
 import { useConfirm } from "../components/ConfirmDialog";
 import { jsonBody, useMutation } from "../components/useMutation";
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.55rem 0.7rem",
-  border: "1px solid rgba(74,63,51,0.2)",
-  fontSize: "0.85rem",
-  outline: "none",
-};
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Loading,
+  PageHeader,
+  SelectField,
+  TextField,
+} from "../../components/ui";
 
 const emptyForm = { kind: "award" as AwardItem["kind"], title: "", detail: "", url: "" };
+
+const KIND_LABEL: Record<AwardItem["kind"], string> = {
+  award: "Award",
+  press: "Press",
+  certification: "Certification",
+};
 
 export default function AdminAwardsPage() {
   const [items, setItems] = useState<AwardItem[]>([]);
@@ -70,128 +78,111 @@ export default function AdminAwardsPage() {
   }
 
   return (
-    <div>
-      <h1
-        style={{
-          fontFamily: "Georgia, serif",
-          fontSize: "1.6rem",
-          marginBottom: "0.6rem",
-          color: "#26231F",
-        }}
-      >
-        Awards, Press & Certifications
-      </h1>
-      <p
-        style={{ fontSize: "0.85rem", color: "#777168", marginBottom: "1.75rem", maxWidth: "60ch" }}
-      >
-        This section only appears on the public site once you add real entries here — nothing is
-        invented or shown by default.
-      </p>
+    <>
+      <PageHeader
+        title="Awards, press & certifications"
+        description="This section only appears on the public site once you add real entries here — nothing is invented or shown by default."
+      />
 
-      <form
-        onSubmit={add}
-        style={{
-          background: "#fff",
-          border: "1px solid rgba(74,63,51,0.16)",
-          padding: "1.5rem",
-          marginBottom: "2rem",
-          display: "grid",
-          gap: "0.8rem",
-          maxWidth: 560,
-        }}
-      >
-        <select
-          value={form.kind}
-          onChange={(e) => setForm({ ...form, kind: e.target.value as AwardItem["kind"] })}
-          style={inputStyle}
-        >
-          <option value="award">Award</option>
-          <option value="press">Press</option>
-          <option value="certification">Certification</option>
-        </select>
-        <input
-          placeholder="Title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          style={inputStyle}
-        />
-        <input
-          placeholder="Detail (publication, year, issuer...)"
-          value={form.detail}
-          onChange={(e) => setForm({ ...form, detail: e.target.value })}
-          style={inputStyle}
-        />
-        <input
-          placeholder="Link (optional)"
-          value={form.url}
-          onChange={(e) => setForm({ ...form, url: e.target.value })}
-          style={inputStyle}
-        />
-        <button
-          type="submit"
-          style={{
-            justifySelf: "start",
-            background: "#B08A4A",
-            color: "#fff",
-            border: "none",
-            padding: "0.6rem 1.4rem",
-            fontSize: "0.8rem",
-          }}
-        >
-          Add Entry
-        </button>
-      </form>
-
-      {loading ? (
-        <p style={{ color: "#777168" }}>Loading…</p>
-      ) : items.length === 0 ? (
-        <p style={{ color: "#777168" }}>Nothing added yet.</p>
-      ) : (
-        <div style={{ display: "grid", gap: "0.6rem" }}>
-          {items.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                background: "#fff",
-                border: "1px solid rgba(74,63,51,0.16)",
-                padding: "1rem 1.25rem",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.7rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "#B08A4A",
-                  }}
-                >
-                  {item.kind}
-                </p>
-                <p style={{ color: "#26231F" }}>{item.title}</p>
-                {item.detail && (
-                  <p style={{ fontSize: "0.8rem", color: "#777168" }}>{item.detail}</p>
-                )}
-              </div>
-              <button
-                onClick={() => remove(item.id)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid #5A2630",
-                  color: "#5A2630",
-                  padding: "0.35rem 0.75rem",
-                  fontSize: "0.72rem",
-                }}
+      <div className="ad-stack-lg">
+        <Card title="Add an entry">
+          <form onSubmit={add} className="ad-stack">
+            <div className="ad-grid-2">
+              <SelectField
+                label="Type"
+                value={form.kind}
+                onChange={(e) => setForm({ ...form, kind: e.target.value as AwardItem["kind"] })}
               >
-                Remove
-              </button>
+                <option value="award">Award</option>
+                <option value="press">Press</option>
+                <option value="certification">Certification</option>
+              </SelectField>
+              <TextField
+                label="Title"
+                placeholder="Best Residential Interior"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+            <TextField
+              label="Detail"
+              hint="Publication, year, or issuing body."
+              placeholder="Architectural Digest, 2025"
+              value={form.detail}
+              onChange={(e) => setForm({ ...form, detail: e.target.value })}
+            />
+            <TextField
+              label="Link"
+              hint="Optional. Shown as a link on the public site."
+              type="url"
+              placeholder="https://…"
+              value={form.url}
+              onChange={(e) => setForm({ ...form, url: e.target.value })}
+            />
+            <div className="ad-row">
+              <Button type="submit" variant="primary" disabled={!form.title.trim()}>
+                Add entry
+              </Button>
+            </div>
+          </form>
+        </Card>
+
+        <Card title="Entries" bodyless>
+          {loading ? (
+            <Loading />
+          ) : items.length === 0 ? (
+            <EmptyState title="Nothing added yet">
+              The recognition section stays hidden until there is something real to show.
+            </EmptyState>
+          ) : (
+            <div className="ad-table-wrap">
+              <table className="ad-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Type</th>
+                    <th scope="col">Title</th>
+                    <th scope="col">Detail</th>
+                    <th scope="col">
+                      <span className="ad-sr">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <Badge tone={item.kind === "award" ? "info" : "neutral"}>
+                          {KIND_LABEL[item.kind]}
+                        </Badge>
+                      </td>
+                      <td className="ad-td-strong">
+                        {item.url ? (
+                          <a href={item.url} target="_blank" rel="noreferrer noopener">
+                            {item.title}
+                          </a>
+                        ) : (
+                          item.title
+                        )}
+                      </td>
+                      <td>{item.detail || <span className="ad-muted">—</span>}</td>
+                      <td className="ad-td-actions">
+                        <Button
+                          variant="danger-quiet"
+                          size="sm"
+                          onClick={() => remove(item.id)}
+                          aria-label={`Remove ${item.title}`}
+                        >
+                          Remove
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
   );
 }

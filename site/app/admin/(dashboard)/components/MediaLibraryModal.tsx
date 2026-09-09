@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MediaItem } from "@/lib/types";
 import { adminFetch } from "@/lib/admin-client";
+import { Button, EmptyState, Loading } from "../../components/ui";
 
 export default function MediaLibraryModal({
   onClose,
@@ -46,116 +47,60 @@ export default function MediaLibraryModal({
   }
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(18,14,10,0.6)",
-        zIndex: 200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "2rem",
-      }}
-    >
+    <div className="ad-modal-backdrop" onClick={onClose}>
       <div
+        className="ad-modal ad-modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose an image"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#F4F1EA",
-          maxWidth: 720,
-          width: "100%",
-          maxHeight: "80vh",
-          display: "flex",
-          flexDirection: "column",
-        }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "1.25rem 1.5rem",
-            borderBottom: "1px solid rgba(74,63,51,0.16)",
-          }}
-        >
-          <p style={{ fontFamily: "Georgia, serif", fontSize: "1.1rem", color: "#26231F" }}>
-            Choose an Image
-          </p>
-          <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-            <label
-              style={{
-                background: "#B08A4A",
-                color: "#fff",
-                padding: "0.4rem 0.8rem",
-                fontSize: "0.72rem",
-                cursor: uploading ? "default" : "pointer",
-                opacity: uploading ? 0.6 : 1,
-              }}
-            >
-              {uploading ? "Uploading…" : "Upload New"}
+        <div className="ad-card-head">
+          <h2 className="ad-card-title">Choose an image</h2>
+          <div className="ad-row">
+            <label className={`ad-btn ad-btn--secondary ad-btn--sm${uploading ? " is-busy" : ""}`}>
+              {uploading ? "Uploading…" : "Upload new"}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 onChange={onUpload}
-                style={{ display: "none" }}
+                className="ad-sr"
                 disabled={uploading}
               />
             </label>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: "transparent",
-                border: "none",
-                fontSize: "1.3rem",
-                color: "#5E5951",
-                cursor: "pointer",
-                lineHeight: 1,
-              }}
-              aria-label="Close"
-            >
+            <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
               ×
-            </button>
+            </Button>
           </div>
         </div>
 
-        {error && (
-          <p style={{ color: "#5A2630", fontSize: "0.78rem", padding: "0.75rem 1.5rem 0" }}>
-            {error}
-          </p>
-        )}
-
-        <div style={{ padding: "1.5rem", overflowY: "auto" }}>
-          {loading ? (
-            <p style={{ color: "#777168" }}>Loading…</p>
-          ) : media.length === 0 ? (
-            <p style={{ color: "#777168" }}>
-              No media uploaded yet — use &ldquo;Upload New&rdquo; above.
+        <div className="ad-card-body">
+          {error && (
+            <p className="ad-error" role="alert">
+              {error}
             </p>
+          )}
+
+          {loading ? (
+            <Loading />
+          ) : media.length === 0 ? (
+            <EmptyState title="No media yet">
+              Use “Upload new” above to add the first image.
+            </EmptyState>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-                gap: "0.85rem",
-              }}
-            >
+            <div className="ad-media-grid">
               {media.map((item) => (
                 <button
                   key={item.id}
                   type="button"
+                  className="ad-thumb"
                   onClick={() => onSelect(item.url)}
                   title={item.filename}
-                  style={{
-                    aspectRatio: "1",
-                    background: `center / cover no-repeat url(${item.url})`,
-                    border: "1px solid rgba(74,63,51,0.16)",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                />
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.url} alt={item.filename} loading="lazy" />
+                </button>
               ))}
             </div>
           )}

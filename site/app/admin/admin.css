@@ -1,0 +1,1285 @@
+/*
+ * Admin design system.
+ *
+ * The panel had 260 inline style objects across 20 files and not one shared
+ * class. That is why it drifted: #B08A4A was pasted in as a button fill in
+ * fourteen places even though the public site's own token comment calls it
+ * decoration-only at 2.86:1, and nothing could catch it because there was
+ * nothing to catch it against. Every colour below is measured, and the pairs
+ * that carry text are all at or above 4.5:1.
+ *
+ * Deliberately a plain stylesheet rather than a CSS-in-JS layer or utility
+ * framework: it is loaded only on /admin (imported by app/admin/layout.tsx)
+ * and it is greppable.
+ *
+ * It takes the panel from 260 inline style objects to three. The three that
+ * remain are bar widths driven by data (`width: 42%`), which cannot become a
+ * class because the value is not known until render — so this does NOT let
+ * middleware.ts drop style-src 'unsafe-inline' for /admin. Doing that needs a
+ * nonce on those attributes; the reduction is a real narrowing of surface, not
+ * a removal of the directive.
+ *
+ * The look is a working tool, not the public site: neutral greys, a system
+ * font stack, dense rows, one accent colour reserved for primary actions.
+ * The brand lives on the public site; this is where the owner works.
+ */
+
+.ad {
+  /* Neutrals ------------------------------------------------------------ */
+  --ad-ground: #f7f8fa;
+  --ad-card: #ffffff;
+  --ad-sunken: #f2f4f7;
+  --ad-line: #e4e7ec;
+  --ad-line-strong: #d0d5dd;
+
+  --ad-ink: #101828; /* 17.75:1 on card */
+  --ad-ink-2: #475467; /* 7.69:1 on card */
+  --ad-ink-3: #667085; /* 4.97:1 on card, 4.68:1 on ground */
+
+  /* Sidebar ------------------------------------------------------------- */
+  --ad-side: #161a20;
+  --ad-side-ink: #e4e7ec; /* 14.08:1 */
+  --ad-side-ink-2: #98a2b3; /* 6.78:1 */
+  --ad-side-line: #2a2f38;
+
+  /* Accents — every one of these carries text somewhere, so every one is
+     measured against the surface it sits on. */
+  --ad-primary: #2563eb; /* white on it: 5.17:1 */
+  --ad-primary-hover: #1d4ed8; /* 6.70:1 */
+  --ad-primary-tint: #eff6ff;
+  --ad-primary-ink: #1d4ed8; /* 6.16:1 on its tint */
+
+  --ad-danger: #d92d20; /* white on it: 4.83:1 */
+  --ad-danger-hover: #b42318;
+  --ad-danger-tint: #fef3f2;
+  --ad-danger-ink: #b42318; /* 6.05:1 on tint, 6.57:1 on card */
+
+  --ad-success: #027a48; /* white on it: 5.41:1 — not #039855, which is 3.73 */
+  --ad-success-tint: #ecfdf3;
+  --ad-success-ink: #027a48; /* 5.13:1 on tint */
+
+  --ad-warn: #b54708; /* 5.43:1 on card */
+  --ad-warn-tint: #fffaeb;
+  --ad-warn-ink: #b54708; /* 5.20:1 on tint */
+
+  /* Scale --------------------------------------------------------------- */
+  --ad-r: 6px;
+  --ad-r-sm: 4px;
+  --ad-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --ad-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+
+  --ad-font:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ad-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   Reset scoped to the panel
+   -------------------------------------------------------------------------- */
+
+.ad,
+.ad *,
+.ad *::before,
+.ad *::after {
+  box-sizing: border-box;
+}
+
+.ad {
+  font-family: var(--ad-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ad-ink);
+  background: var(--ad-ground);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ad h1,
+.ad h2,
+.ad h3,
+.ad h4,
+.ad p,
+.ad ul,
+.ad ol,
+.ad figure,
+.ad dl,
+.ad dd {
+  margin: 0;
+}
+
+.ad ul,
+.ad ol {
+  padding: 0;
+  list-style: none;
+}
+
+/* :where() so this contributes no specificity — the selector scores (0,0,1),
+   the same as a bare element rule.
+   As plain `.ad a` it scored (0,1,1) and beat every single-class component
+   rule: .ad-nav-link (0,1,0) and .ad-btn--secondary (0,1,0) both lost to it,
+   so sidebar links and anchors styled as buttons came out link-blue. A default
+   must never outrank the components layered on top of it. */
+:where(.ad) a {
+  color: var(--ad-primary);
+  text-decoration: none;
+}
+
+:where(.ad) a:hover {
+  text-decoration: underline;
+}
+
+/* One visible focus ring for the whole panel. Keyboard users get it; mouse
+   users do not, which is what :focus-visible is for. */
+.ad :focus-visible {
+  outline: 2px solid var(--ad-primary);
+  outline-offset: 2px;
+  border-radius: var(--ad-r-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Shell
+   -------------------------------------------------------------------------- */
+
+.ad-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.ad-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ad-content {
+  flex: 1;
+  padding: 28px clamp(16px, 3vw, 40px) 64px;
+  max-width: 1180px;
+  width: 100%;
+}
+
+/* Sidebar ------------------------------------------------------------------ */
+
+.ad-sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  background: var(--ad-side);
+  color: var(--ad-side-ink);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 20px 12px;
+}
+
+.ad-brand {
+  padding: 4px 10px 20px;
+}
+
+.ad-brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.ad-brand-sub {
+  font-size: 11px;
+  color: var(--ad-side-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+.ad-nav {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  align-content: start;
+}
+
+.ad-nav-section {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ad-side-ink-2);
+  padding: 16px 10px 6px;
+}
+
+.ad-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--ad-r-sm);
+  font-size: 13px;
+  color: var(--ad-side-ink);
+  white-space: nowrap;
+}
+
+.ad-nav-link:hover {
+  background: var(--ad-side-line);
+  text-decoration: none;
+}
+
+.ad-nav-link.is-active {
+  background: #ffffff;
+  color: var(--ad-ink);
+  font-weight: 600;
+}
+
+.ad-nav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ad-danger);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ad-sidebar-foot {
+  border-top: 1px solid var(--ad-side-line);
+  padding: 14px 10px 4px;
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.ad-who-name {
+  font-size: 13px;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.ad-who-role {
+  font-size: 11px;
+  color: var(--ad-side-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------------------------------------------------------------------------
+   Page header
+   -------------------------------------------------------------------------- */
+
+.ad-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.ad-page-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ad-ink);
+}
+
+.ad-page-sub {
+  font-size: 13px;
+  color: var(--ad-ink-3);
+  margin-top: 4px;
+  max-width: 70ch;
+}
+
+/* ---------------------------------------------------------------------------
+   Card
+   -------------------------------------------------------------------------- */
+
+.ad-card {
+  background: var(--ad-card);
+  border: 1px solid var(--ad-line);
+  border-radius: var(--ad-r);
+  box-shadow: var(--ad-shadow);
+}
+
+.ad-card-head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ad-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ad-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ad-ink);
+}
+
+.ad-card-sub {
+  font-size: 12px;
+  color: var(--ad-ink-3);
+  margin-top: 2px;
+}
+
+.ad-card-body {
+  padding: 16px;
+}
+
+.ad-card-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--ad-line);
+  background: var(--ad-sunken);
+  border-radius: 0 0 var(--ad-r) var(--ad-r);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ad-card-foot--end {
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.ad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: var(--ad-r-sm);
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.ad-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ad-btn--primary {
+  background: var(--ad-primary);
+  color: #ffffff;
+}
+
+.ad-btn--primary:not(:disabled):hover {
+  background: var(--ad-primary-hover);
+}
+
+.ad-btn--secondary {
+  background: var(--ad-card);
+  border-color: var(--ad-line-strong);
+  color: var(--ad-ink);
+}
+
+.ad-btn--secondary:not(:disabled):hover {
+  background: var(--ad-sunken);
+}
+
+.ad-btn--ghost {
+  background: transparent;
+  color: var(--ad-ink-2);
+}
+
+.ad-btn--ghost:not(:disabled):hover {
+  background: var(--ad-sunken);
+  color: var(--ad-ink);
+}
+
+.ad-btn--danger {
+  background: var(--ad-danger);
+  color: #ffffff;
+}
+
+.ad-btn--danger:not(:disabled):hover {
+  background: var(--ad-danger-hover);
+}
+
+/* Destructive but not the primary action on the screen: reads as quiet until
+   hovered, so "Remove" does not compete with "Save". */
+.ad-btn--danger-quiet {
+  background: transparent;
+  border-color: var(--ad-line-strong);
+  color: var(--ad-danger-ink);
+}
+
+.ad-btn--danger-quiet:not(:disabled):hover {
+  background: var(--ad-danger-tint);
+  border-color: var(--ad-danger);
+}
+
+.ad-btn--sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.ad-btn--block {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Forms
+   -------------------------------------------------------------------------- */
+
+.ad-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ad-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ad-ink-2);
+}
+
+.ad-input,
+.ad-textarea,
+.ad-select {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--ad-line-strong);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-card);
+  color: var(--ad-ink);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ad-input::placeholder,
+.ad-textarea::placeholder {
+  color: var(--ad-ink-3);
+}
+
+.ad-input:focus,
+.ad-textarea:focus,
+.ad-select:focus {
+  outline: 2px solid var(--ad-primary);
+  outline-offset: 0;
+  border-color: var(--ad-primary);
+}
+
+.ad-textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.ad-input:disabled,
+.ad-textarea:disabled {
+  background: var(--ad-sunken);
+  color: var(--ad-ink-3);
+}
+
+/* Edit-in-place inputs inside a list row: chromeless until interacted with,
+   so a list of records reads as content rather than as a wall of form. */
+.ad-input--seamless {
+  border-color: transparent;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ad-input--seamless:hover {
+  border-color: var(--ad-line);
+  background: var(--ad-card);
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.ad-input--title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ad-hint {
+  font-size: 12px;
+  color: var(--ad-ink-3);
+}
+
+.ad-error {
+  font-size: 12px;
+  color: var(--ad-danger-ink);
+}
+
+.ad-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ad-ink-2);
+  cursor: pointer;
+}
+
+.ad-checkbox input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--ad-primary);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Table
+   -------------------------------------------------------------------------- */
+
+.ad-table-wrap {
+  overflow-x: auto;
+}
+
+.ad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ad-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ad-ink-3);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ad-line);
+  background: var(--ad-sunken);
+  white-space: nowrap;
+}
+
+.ad-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--ad-line);
+  color: var(--ad-ink-2);
+  vertical-align: middle;
+}
+
+.ad-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ad-table tbody tr:hover td {
+  background: var(--ad-sunken);
+}
+
+.ad-td-strong {
+  color: var(--ad-ink);
+  font-weight: 500;
+}
+
+.ad-td-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A record and its toggles side by side, stacking on narrow screens. */
+.ad-review {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: start;
+}
+
+.ad-review-side {
+  min-width: 150px;
+  align-content: start;
+}
+
+@media (max-width: 720px) {
+  .ad-review {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Unread enquiries carry a leading rule. Paired with a text badge, never on
+   its own — a colour bar is not information a screen reader can reach. */
+.ad-enquiry--unread {
+  border-left: 3px solid var(--ad-primary);
+}
+
+.ad-enquiry-body {
+  white-space: pre-wrap;
+  color: var(--ad-ink-2);
+  border-left: 2px solid var(--ad-line);
+  padding-left: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+   Badge, banner, empty state
+   -------------------------------------------------------------------------- */
+
+.ad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  background: var(--ad-sunken);
+  color: #344054;
+  white-space: nowrap;
+}
+
+.ad-badge--success {
+  background: var(--ad-success-tint);
+  color: var(--ad-success-ink);
+}
+
+.ad-badge--danger {
+  background: var(--ad-danger-tint);
+  color: var(--ad-danger-ink);
+}
+
+.ad-badge--warn {
+  background: var(--ad-warn-tint);
+  color: var(--ad-warn-ink);
+}
+
+.ad-badge--info {
+  background: var(--ad-primary-tint);
+  color: var(--ad-primary-ink);
+}
+
+.ad-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: var(--ad-r);
+  border: 1px solid transparent;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.ad-banner--warn {
+  background: var(--ad-warn-tint);
+  border-color: #fedf89;
+  color: var(--ad-warn-ink);
+}
+
+.ad-banner--danger {
+  background: var(--ad-danger-tint);
+  border-color: #fecdca;
+  color: var(--ad-danger-ink);
+}
+
+.ad-banner--info {
+  background: var(--ad-primary-tint);
+  border-color: #b2ddff;
+  color: var(--ad-primary-ink);
+}
+
+.ad-banner a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.ad-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ad-ink-3);
+  font-size: 13px;
+}
+
+.ad-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ad-ink-2);
+  margin-bottom: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   Layout helpers
+   -------------------------------------------------------------------------- */
+
+.ad-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.ad-stack-lg {
+  display: grid;
+  gap: 20px;
+}
+
+.ad-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ad-row-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ad-grid-2 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.ad-spacer {
+  flex: 1;
+}
+
+.ad-saved {
+  font-size: 13px;
+  color: var(--ad-success-ink);
+  font-weight: 500;
+}
+
+.ad-narrow {
+  max-width: 480px;
+}
+
+.ad-draggable {
+  cursor: grab;
+}
+
+.ad-draggable:active {
+  cursor: grabbing;
+}
+
+.ad-grip {
+  color: var(--ad-ink-3);
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+}
+
+.ad-project-head {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.ad-muted {
+  color: var(--ad-ink-3);
+}
+
+.ad-mono {
+  font-family: var(--ad-mono);
+  font-size: 12px;
+}
+
+.ad-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Screen-reader-only, for labels a sighted user reads from context. */
+.ad-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Stat tiles (dashboard)
+   -------------------------------------------------------------------------- */
+
+.ad-stats {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.ad-stat {
+  background: var(--ad-card);
+  border: 1px solid var(--ad-line);
+  border-radius: var(--ad-r);
+  padding: 14px 16px;
+  box-shadow: var(--ad-shadow);
+}
+
+.ad-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ad-ink-3);
+}
+
+.ad-stat-value {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ad-ink);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ad-stat-note {
+  font-size: 12px;
+  color: var(--ad-ink-3);
+  margin-top: 2px;
+}
+
+/* Period-over-period change. Status colour, but always with a glyph and a
+   screen-reader direction, so the meaning never rests on hue. */
+.ad-delta {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ad-ink-3);
+}
+
+.ad-delta--up {
+  color: var(--ad-success-ink);
+}
+
+.ad-delta--down {
+  color: var(--ad-danger-ink);
+}
+
+/* Ranked rows -------------------------------------------------------------- */
+
+.ad-bar-row {
+  margin-bottom: 12px;
+}
+
+.ad-bar-row:last-child {
+  margin-bottom: 0;
+}
+
+.ad-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.ad-bar-label {
+  color: var(--ad-ink);
+  text-transform: capitalize;
+}
+
+.ad-bar-value {
+  color: var(--ad-ink-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Trend ------------------------------------------------------------------- */
+
+.ad-trend {
+  margin: 0;
+}
+
+.ad-trend-plot {
+  display: flex;
+  align-items: flex-end;
+  /* 2px of surface between adjacent fills so bars read as separate marks. */
+  gap: 4px;
+  height: 128px;
+}
+
+.ad-trend-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.ad-trend-value {
+  font-size: 10px;
+  color: var(--ad-ink-3);
+  margin-bottom: 3px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Rounded data-end, square against the baseline. */
+.ad-trend-bar {
+  width: 100%;
+  background: var(--ad-primary);
+  border-radius: 4px 4px 0 0;
+}
+
+.ad-trend-axis {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ad-trend-tick {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--ad-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Activity feed ------------------------------------------------------------ */
+
+.ad-activity {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--ad-ink-2);
+}
+
+.ad-activity strong {
+  color: var(--ad-ink);
+  font-weight: 600;
+}
+
+.ad-activity time {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* Two- or three-up card row that collapses on narrow screens. */
+.ad-cols {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+}
+
+/* Bar used by the dashboard's share-of-total rows. Decorative — the number it
+   illustrates is always printed next to it. */
+.ad-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ad-sunken);
+  overflow: hidden;
+}
+
+.ad-meter--tall {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.ad-meter-fill {
+  height: 100%;
+  background: var(--ad-primary);
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   Media grid
+   -------------------------------------------------------------------------- */
+
+.ad-media-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.ad-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--ad-r-sm);
+  overflow: hidden;
+  background: var(--ad-sunken);
+  border: 1px solid var(--ad-line);
+}
+
+.ad-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ad-media-grid--sm {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+/* Overlay label on a thumbnail. Solid, not translucent: over an arbitrary
+   photograph a translucent chip has no guaranteed contrast. */
+.ad-thumb-tag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--ad-ink);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.ad-stack-tight {
+  display: grid;
+  gap: 4px;
+}
+
+.ad-row--tight {
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.ad-row--tight .ad-btn {
+  flex: 1;
+  padding: 0 4px;
+  min-width: 0;
+}
+
+.ad-thumb--selected {
+  outline: 2px solid var(--ad-primary);
+  outline-offset: 1px;
+}
+
+/* Image picker --------------------------------------------------------------
+   Preview beside its controls, so the thing being replaced stays visible while
+   you replace it. */
+
+.ad-picker {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ad-picker-preview {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border: 1px solid var(--ad-line);
+  border-radius: var(--ad-r-sm);
+  background: var(--ad-sunken);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  text-align: center;
+}
+
+.ad-picker-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* A <label> styled as a button, wrapping a hidden file input. */
+label.ad-btn {
+  cursor: pointer;
+}
+
+label.ad-btn.is-busy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ad-media-card {
+  overflow: hidden;
+  margin: 0;
+}
+
+.ad-media-card .ad-thumb {
+  border: none;
+  border-radius: 0;
+  aspect-ratio: 1;
+}
+
+.ad-media-meta {
+  padding: 8px 10px 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.ad-media-name {
+  font-size: 11px;
+  color: var(--ad-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Modal
+   -------------------------------------------------------------------------- */
+
+.ad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.ad-modal {
+  background: var(--ad-card);
+  border-radius: 8px;
+  box-shadow: var(--ad-shadow-lg);
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.ad-modal--wide {
+  max-width: 860px;
+}
+
+/* ---------------------------------------------------------------------------
+   Toasts
+   -------------------------------------------------------------------------- */
+
+.ad-toasts {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 8px;
+  z-index: 200;
+  max-width: min(380px, calc(100vw - 32px));
+}
+
+.ad-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--ad-r);
+  box-shadow: var(--ad-shadow-lg);
+  font-size: 13px;
+  border: 1px solid transparent;
+  background: var(--ad-card);
+  color: var(--ad-ink);
+}
+
+.ad-toast--success {
+  background: var(--ad-success-tint);
+  border-color: #a6f4c5;
+  color: var(--ad-success-ink);
+}
+
+.ad-toast--error {
+  background: var(--ad-danger-tint);
+  border-color: #fecdca;
+  color: var(--ad-danger-ink);
+}
+
+.ad-toast-x {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Login
+   -------------------------------------------------------------------------- */
+
+.ad-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--ad-ground);
+}
+
+.ad-login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--ad-card);
+  border: 1px solid var(--ad-line);
+  border-radius: 8px;
+  box-shadow: var(--ad-shadow);
+  padding: 28px;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .ad-shell {
+    flex-direction: column;
+  }
+
+  .ad-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    padding: 12px;
+  }
+
+  .ad-nav {
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+
+  .ad-nav-section {
+    display: none;
+  }
+
+  .ad-brand {
+    padding: 4px 6px 12px;
+  }
+
+  .ad-sidebar-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    padding-bottom: 0;
+  }
+
+  .ad-content {
+    padding: 20px 16px 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ad * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

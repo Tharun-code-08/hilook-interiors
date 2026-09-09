@@ -3,20 +3,41 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { adminFetch } from "@/lib/admin-client";
+import { Button } from "../components/ui";
 
-const LINKS = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/portfolio", label: "Portfolio" },
-  { href: "/admin/services", label: "Services" },
-  { href: "/admin/process", label: "Process" },
-  { href: "/admin/reviews", label: "Reviews" },
-  { href: "/admin/submissions", label: "Inbox" },
-  { href: "/admin/content", label: "Content" },
-  { href: "/admin/awards", label: "Awards & Press" },
-  { href: "/admin/media", label: "Media Library" },
-  { href: "/admin/users", label: "Admin Users" },
-  { href: "/admin/password", label: "Change Password" },
-];
+/**
+ * Grouped rather than one flat list of eleven.
+ *
+ * The old nav mixed "edit the reviews on the home page" with "add an admin
+ * account" in a single run, so finding anything meant reading all of it. These
+ * are the three things an owner actually comes here to do: change what the
+ * site says, deal with what has come in, or administer the panel itself.
+ */
+const SECTIONS = [
+  {
+    label: "Site content",
+    links: [
+      { href: "/admin/portfolio", label: "Portfolio" },
+      { href: "/admin/services", label: "Services" },
+      { href: "/admin/process", label: "Process" },
+      { href: "/admin/reviews", label: "Reviews" },
+      { href: "/admin/awards", label: "Awards & press" },
+      { href: "/admin/content", label: "Text & contact" },
+      { href: "/admin/media", label: "Media library" },
+    ],
+  },
+  {
+    label: "Operations",
+    links: [{ href: "/admin/submissions", label: "Inbox" }],
+  },
+  {
+    label: "Account",
+    links: [
+      { href: "/admin/users", label: "Admin users" },
+      { href: "/admin/password", label: "Password" },
+    ],
+  },
+] as const;
 
 export default function AdminNav({
   username,
@@ -37,132 +58,69 @@ export default function AdminNav({
   }
 
   return (
-    <nav
-      className="hi-admin-nav"
-      style={{
-        width: 220,
-        flexShrink: 0,
-        background: "#26231F",
-        color: "#F4F1EA",
-        padding: "2rem 1.25rem",
-        display: "flex",
-        flexDirection: "column",
-        position: "sticky",
-        top: 0,
-        height: "100vh",
-        overflowY: "auto",
-      }}
-    >
-      <p style={{ fontFamily: "Georgia, serif", fontSize: "1.15rem", marginBottom: "0.25rem" }}>
-        Hilook Interiors
-      </p>
-      <p style={{ fontSize: "0.7rem", color: "rgba(244,241,234,0.5)", marginBottom: "2rem" }}>
-        Admin panel
-      </p>
+    <nav className="ad-sidebar" aria-label="Admin sections">
+      <div className="ad-brand">
+        <div className="ad-brand-name">Hilook Interiors</div>
+        <div className="ad-brand-sub">Admin</div>
+      </div>
 
-      <ul
-        className="hi-admin-nav-links"
-        style={{ listStyle: "none", display: "grid", gap: "0.35rem", flex: 1 }}
-      >
-        {LINKS.map((link) => {
-          const active = pathname === link.href;
-          return (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.55rem 0.7rem",
-                  fontSize: "0.85rem",
-                  borderRadius: 3,
-                  whiteSpace: "nowrap",
-                  color: active ? "#26231F" : "rgba(244,241,234,0.8)",
-                  background: active ? "#C5A45E" : "transparent",
-                }}
-              >
-                {link.label}
-                {/* Marks the one item the operator has to act on before the
-                    panel is safe to use. */}
-                {link.href === "/admin/password" && mustChangePassword && (
-                  <span
-                    aria-label="Action required"
-                    title="You're still using the password this account was created with"
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: active ? "#5A2630" : "#D98B7F",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-              </Link>
-            </li>
-          );
-        })}
+      <ul className="ad-nav">
+        <li>
+          <Link
+            href="/admin"
+            className={`ad-nav-link${pathname === "/admin" ? " is-active" : ""}`}
+            aria-current={pathname === "/admin" ? "page" : undefined}
+          >
+            Dashboard
+          </Link>
+        </li>
+
+        {/* Flat list with heading rows rather than nested <ul>s: on narrow
+            screens .ad-nav becomes a horizontal scroller, and a nested list
+            would not flow into it. */}
+        {SECTIONS.flatMap((section) => [
+          <li key={section.label} className="ad-nav-section" aria-hidden="true">
+            {section.label}
+          </li>,
+          ...section.links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className={`ad-nav-link${active ? " is-active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {link.label}
+                  {/* Marks the one item the operator has to act on before the
+                      panel is safe to use. */}
+                  {link.href === "/admin/password" && mustChangePassword && (
+                    <span
+                      className="ad-nav-dot"
+                      title="You're still using the password this account was created with"
+                    >
+                      <span className="ad-sr">Action required</span>
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          }),
+        ])}
       </ul>
 
-      <div
-        style={{
-          borderTop: "1px solid rgba(244,241,234,0.14)",
-          paddingTop: "1rem",
-          marginTop: "1rem",
-        }}
-      >
-        <p style={{ fontSize: "0.75rem", color: "rgba(244,241,234,0.65)" }}>{username}</p>
-        <p style={{ fontSize: "0.7rem", color: "rgba(244,241,234,0.4)", marginBottom: "0.9rem" }}>
-          {role}
-        </p>
-        <button
-          onClick={logout}
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: "1px solid rgba(244,241,234,0.24)",
-            color: "#F4F1EA",
-            padding: "0.5rem",
-            fontSize: "0.75rem",
-          }}
-        >
+      <div className="ad-sidebar-foot">
+        <div>
+          <div className="ad-who-name">{username}</div>
+          <div className="ad-who-role">{role}</div>
+        </div>
+        <Button variant="secondary" size="sm" block onClick={logout}>
           Log out
-        </button>
-        <Link
-          href="/"
-          style={{
-            display: "block",
-            marginTop: "0.75rem",
-            fontSize: "0.75rem",
-            color: "rgba(244,241,234,0.5)",
-          }}
-        >
+        </Button>
+        <Link href="/" className="ad-nav-link">
           ← View site
         </Link>
       </div>
-
-      <style>{`
-        @media (max-width: 720px) {
-          .hi-admin-nav {
-            width: 100% !important;
-            height: auto !important;
-            max-height: 100vh;
-            flex-direction: row !important;
-            align-items: center !important;
-            flex-wrap: wrap;
-            padding: 1rem 1.25rem !important;
-            gap: 1rem;
-          }
-          .hi-admin-nav-links {
-            display: flex !important;
-            flex: none !important;
-            width: 100%;
-            overflow-x: auto;
-            order: 3;
-            gap: 0.5rem !important;
-          }
-        }
-      `}</style>
     </nav>
   );
 }

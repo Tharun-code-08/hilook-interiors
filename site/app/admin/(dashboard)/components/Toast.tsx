@@ -59,15 +59,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         // Errors are assertive because they mean the operator's action did not
         // happen; successes are polite so they don't interrupt.
         aria-live="polite"
-        style={{
-          position: "fixed",
-          right: "1.25rem",
-          bottom: "1.25rem",
-          zIndex: 200,
-          display: "grid",
-          gap: "0.5rem",
-          maxWidth: "min(380px, calc(100vw - 2.5rem))",
-        }}
+        className="ad-toasts"
       >
         {toasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
@@ -77,10 +69,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const TONE_STYLES: Record<ToastTone, { bg: string; border: string; fg: string }> = {
-  success: { bg: "#EDF3F0", border: "#173F35", fg: "#173F35" },
-  error: { bg: "#F6EDEE", border: "#5A2630", fg: "#5A2630" },
-  info: { bg: "#F4F1EA", border: "rgba(74,63,51,0.3)", fg: "#26231F" },
+const TONE_CLASS: Record<ToastTone, string> = {
+  success: "ad-toast ad-toast--success",
+  error: "ad-toast ad-toast--error",
+  info: "ad-toast",
 };
 
 function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
@@ -92,40 +84,14 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     return () => clearTimeout(timer);
   }, [toast, onDismiss]);
 
-  const tone = TONE_STYLES[toast.tone];
-
   return (
-    <div
-      role={toast.tone === "error" ? "alert" : "status"}
-      style={{
-        background: tone.bg,
-        border: `1px solid ${tone.border}`,
-        color: tone.fg,
-        padding: "0.75rem 0.9rem",
-        fontSize: "0.83rem",
-        lineHeight: 1.5,
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "0.75rem",
-        boxShadow: "0 6px 20px rgba(20,16,12,0.12)",
-      }}
-    >
-      <span style={{ flex: 1 }}>{toast.message}</span>
+    <div role={toast.tone === "error" ? "alert" : "status"} className={TONE_CLASS[toast.tone]}>
+      <span className="ad-spacer">{toast.message}</span>
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
         aria-label="Dismiss"
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "inherit",
-          fontSize: "1.1rem",
-          lineHeight: 1,
-          padding: 0,
-          width: 20,
-          height: 20,
-          flexShrink: 0,
-        }}
+        className="ad-toast-x"
       >
         ×
       </button>

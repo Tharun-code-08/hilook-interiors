@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Button } from "../../components/ui";
 
 /**
  * Replaces native confirm() for destructive admin actions (finding M2).
@@ -86,90 +87,37 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {request && (
-        <div
-          onClick={() => settle(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 210,
-            background: "rgba(18,14,10,0.55)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1.5rem",
-          }}
-        >
+        <div className="ad-modal-backdrop" onClick={() => settle(false)}>
           <div
             ref={dialogRef}
+            className="ad-modal"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="hi-confirm-title"
             aria-describedby={request.body ? "hi-confirm-body" : undefined}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              border: "1px solid rgba(74,63,51,0.2)",
-              maxWidth: 420,
-              width: "100%",
-              padding: "1.5rem",
-            }}
           >
-            <h2
-              id="hi-confirm-title"
-              style={{
-                fontFamily: "Georgia, serif",
-                fontSize: "1.15rem",
-                color: "#26231F",
-                marginBottom: request.body ? "0.6rem" : "1.25rem",
-              }}
-            >
-              {request.title}
-            </h2>
-
-            {request.body && (
-              <p
-                id="hi-confirm-body"
-                style={{
-                  fontSize: "0.87rem",
-                  lineHeight: 1.6,
-                  color: "#5E5951",
-                  marginBottom: "1.5rem",
-                }}
-              >
-                {request.body}
-              </p>
-            )}
-
-            <div style={{ display: "flex", gap: "0.6rem", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => settle(false)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(74,63,51,0.28)",
-                  color: "#26231F",
-                  padding: "0.6rem 1.2rem",
-                  minHeight: 40,
-                  fontSize: "0.82rem",
-                }}
-              >
+            <div className="ad-card-body ad-stack">
+              <h2 id="hi-confirm-title" className="ad-card-title">
+                {request.title}
+              </h2>
+              {request.body && (
+                <p id="hi-confirm-body" className="ad-muted">
+                  {request.body}
+                </p>
+              )}
+            </div>
+            <div className="ad-card-foot ad-card-foot--end">
+              <Button variant="secondary" onClick={() => settle(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 ref={confirmButtonRef}
-                type="button"
+                variant={request.tone === "danger" ? "danger" : "primary"}
                 onClick={() => settle(true)}
-                style={{
-                  background: request.tone === "danger" ? "#5A2630" : "#26231F",
-                  border: "none",
-                  color: "#F4F1EA",
-                  padding: "0.6rem 1.2rem",
-                  minHeight: 40,
-                  fontSize: "0.82rem",
-                }}
               >
                 {request.confirmLabel ?? "Confirm"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
