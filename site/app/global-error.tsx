@@ -40,7 +40,11 @@ export default function GlobalError({
               fontSize: "0.65rem",
               letterSpacing: "0.25em",
               textTransform: "uppercase",
-              color: "#8A6A33",
+              // Hex, not a token: global-error replaces the whole document, so
+              // globals.css is not loaded and var() would resolve to nothing.
+              // These are the same measured values the tokens carry —
+              // #846430 is 4.84:1 here, where #8A6A33 was 4.44:1 and failed.
+              color: "#846430",
               marginBottom: "1.25rem",
             }}
           >
@@ -71,7 +75,11 @@ export default function GlobalError({
             type="button"
             onClick={reset}
             style={{
-              background: "#B08A4A",
+              // #B08A4A is decoration-only at 2.87:1 under this text — the
+              // misuse the token comment in globals.css warns about, which
+              // survived here because this screen only renders when the root
+              // layout itself throws and so is covered by no test.
+              background: "#82632F",
               color: "#F8F2E8",
               border: "none",
               borderRadius: 2,

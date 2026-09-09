@@ -147,7 +147,7 @@ export default function SessionList() {
       ) : rows.length === 0 ? (
         <EmptyState title="No active sessions" />
       ) : (
-        <div className="ad-table-wrap">
+        <div className="ad-table-wrap" role="region" aria-label="Signed-in devices" tabIndex={0}>
           <table className="ad-table">
             <thead>
               <tr>

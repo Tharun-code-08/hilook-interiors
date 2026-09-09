@@ -538,8 +538,21 @@
    Table
    -------------------------------------------------------------------------- */
 
+/* Scrolls sideways on narrow screens, and every use of it carries
+   role="region", an aria-label and tabindex={0}.
+   A container that scrolls but cannot be focused is unreachable by keyboard —
+   there is no way to scroll it without a pointer. axe calls this
+   scrollable-region-focusable, and it only fires at widths where the table
+   actually overflows, which is why it went unnoticed until the mobile project
+   was run. */
 .ad-table-wrap {
   overflow-x: auto;
+}
+
+/* The focus ring belongs on the region when it is tabbed to, but the default
+   2px offset would sit outside the card. */
+.ad-table-wrap:focus-visible {
+  outline-offset: -2px;
 }
 
 .ad-table {

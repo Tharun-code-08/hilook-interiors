@@ -126,7 +126,7 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
           {users.length === 0 ? (
             <EmptyState title="No accounts" />
           ) : (
-            <div className="ad-table-wrap">
+            <div className="ad-table-wrap" role="region" aria-label="Admin accounts" tabIndex={0}>
               <table className="ad-table">
                 <thead>
                   <tr>

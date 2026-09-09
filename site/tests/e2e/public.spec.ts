@@ -274,6 +274,22 @@ test.describe("content security policy", () => {
 });
 
 test.describe("accessibility", () => {
+  /**
+   * Scans run with reduced motion.
+   *
+   * Not a convenience: axe samples computed colour, and the sections fade in,
+   * so a scan that starts before the animation settles reads whatever colour
+   * the element happened to be part-way through. That produced failures at
+   * 1.43:1 on a label whose settled contrast is 4.84:1 — real-looking numbers
+   * for a state that exists for a few hundred milliseconds, and only on some
+   * runs.
+   *
+   * Emulating the preference is also the more honest audit: it is a real user
+   * setting the site honours, and it is the state in which the content is
+   * simply present and can be measured.
+   */
+  test.use({ reducedMotion: "reduce" });
+
   test("home page has no detectable WCAG A/AA violations", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");

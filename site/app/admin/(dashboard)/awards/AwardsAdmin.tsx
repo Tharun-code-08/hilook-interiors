@@ -126,7 +126,12 @@ export default function AwardsAdmin({ initial }: { initial: AwardItem[] }) {
               The recognition section stays hidden until there is something real to show.
             </EmptyState>
           ) : (
-            <div className="ad-table-wrap">
+            <div
+              className="ad-table-wrap"
+              role="region"
+              aria-label="Awards, press and certifications"
+              tabIndex={0}
+            >
               <table className="ad-table">
                 <thead>
                   <tr>

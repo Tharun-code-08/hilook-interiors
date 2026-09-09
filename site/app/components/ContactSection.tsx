@@ -91,35 +91,73 @@ export default function ContactSection({ settings }: { settings: Settings }) {
         >
           <Reveal index={1}>
             <form onSubmit={onSubmit} style={{ display: "grid", gap: "1.6rem" }}>
-              <input
-                required
-                placeholder="Name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                style={inputStyle}
-              />
-              <input
-                required
-                type="email"
-                placeholder="Email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                style={inputStyle}
-              />
-              <input
-                placeholder="Phone"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                style={inputStyle}
-              />
-              <textarea
-                required
-                placeholder="Message"
-                rows={4}
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                style={{ ...inputStyle, resize: "vertical" }}
-              />
+              {/* Real labels, visually hidden.
+                  These four fields were labelled by placeholder alone. A
+                  placeholder is not a label: it disappears the moment someone
+                  starts typing, so anyone who loses their place has nothing to
+                  read, and assistive tech treats it as a last-resort fallback
+                  rather than a name. Hiding the label keeps the minimal look
+                  the design wants without leaving the field anonymous. */}
+              <div>
+                <label className="hi-sr-only" htmlFor="hi-contact-name">
+                  Your name
+                </label>
+                <input
+                  id="hi-contact-name"
+                  name="name"
+                  autoComplete="name"
+                  required
+                  placeholder="Name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="hi-sr-only" htmlFor="hi-contact-email">
+                  Your email address
+                </label>
+                <input
+                  id="hi-contact-email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  type="email"
+                  placeholder="Email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="hi-sr-only" htmlFor="hi-contact-phone">
+                  Your phone number (optional)
+                </label>
+                <input
+                  id="hi-contact-phone"
+                  name="phone"
+                  autoComplete="tel"
+                  placeholder="Phone"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="hi-sr-only" htmlFor="hi-contact-message">
+                  How can we help?
+                </label>
+                <textarea
+                  id="hi-contact-message"
+                  name="message"
+                  required
+                  placeholder="Message"
+                  rows={4}
+                  value={form.message}
+                  onChange={(e) => setForm({ ...form, message: e.target.value })}
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
+              </div>
 
               {/* Honeypot. Hidden from sight, from the tab order, and from
                   assistive tech — a person cannot reach it, so anything in it

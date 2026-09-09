@@ -96,10 +96,17 @@ test.describe("authentication", () => {
       await expect(page.getByRole("heading", { name: /set a new password/i })).toBeVisible();
       await rotatePassword(page, SEED_PASSWORD, NEW_PASSWORD);
     } else {
-      // Already rotated by an earlier run — assert the seed password is dead,
-      // which is the same property from the other side.
+      // Already rotated — the seed password must not grant access.
+      //
+      // Asserted as "did not reach the panel" rather than by matching the
+      // error text. The chromium and mobile projects share one e2e database,
+      // so by the time this runs the login limiter may already have tripped
+      // and the reply is "too many attempts" rather than "invalid
+      // credentials". Both are refusals; this test cares that the door stayed
+      // shut, and pinning the wording made it pass or fail depending on which
+      // project happened to run first.
       await expect(page).toHaveURL(/\/admin\/login/);
-      await expect(page.getByText(/invalid credentials/i)).toBeVisible();
+      await expect(page.getByRole("button", { name: /sign in|log in/i })).toBeVisible();
     }
   });
 });
@@ -268,6 +275,45 @@ test.describe("public endpoint hardening", () => {
  * it after the fact, because that is the only way to tell real revocation from
  * a cleared cookie.
  */
+/**
+ * Lead capture, end to end.
+ *
+ * The suite covered both ways a contact submission can be *rejected* — a bad
+ * email, and the honeypot — and no way it can succeed. For a studio whose
+ * enquiries are the business, the path with no test was the one that matters
+ * most: a visitor fills the form in, and it reaches the inbox.
+ *
+ * The wait is not padding. app/api/contact/route.ts discards anything
+ * submitted within MIN_FILL_MS (3s) of the form rendering, on the reasoning
+ * that no human loads a page and submits inside three seconds. A test that
+ * fills instantly is indistinguishable from the bots that check exists for and
+ * gets the same silent 200 — which is exactly what happened the first time
+ * this was written.
+ */
+test.describe("contact form reaches the inbox", () => {
+  test("a genuine enquiry is stored and appears in the admin inbox", async ({ page }) => {
+    const marker = `Walkthrough Client ${Date.now()}`;
+
+    await page.goto("/");
+    await page.locator("#contact").scrollIntoViewIfNeeded();
+
+    await page.getByLabel("Your name").fill(marker);
+    await page.getByLabel("Your email address").fill("enquiry@example.com");
+    await page.getByLabel("How can we help?").fill("Please quote for a full-home design.");
+
+    // Clear MIN_FILL_MS, or the endpoint treats this as a bot and silently
+    // returns success without storing anything.
+    await page.waitForTimeout(3400);
+    await page.getByRole("button", { name: /send inquiry/i }).click();
+
+    await expect(page.getByText(/thank you/i)).toBeVisible({ timeout: 10_000 });
+
+    await signIn(page);
+    await page.goto("/admin/submissions");
+    await expect(page.getByText(marker)).toBeVisible({ timeout: 10_000 });
+  });
+});
+
 test.describe("session revocation", () => {
   test("a token captured before sign-out stops working after it", async ({ page, context }) => {
     await signIn(page);
@@ -376,6 +422,10 @@ test.describe("autosave", () => {
  * it that way.
  */
 test.describe("admin accessibility", () => {
+  // Same reason as the public scans: measure the settled state, not a frame
+  // part-way through a transition.
+  test.use({ reducedMotion: "reduce" });
+
   const PAGES = [
     "/admin",
     "/admin/portfolio",

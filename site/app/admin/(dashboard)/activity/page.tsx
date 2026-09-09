@@ -63,7 +63,7 @@ export default async function AdminActivityPage() {
             Actions taken in the panel appear here.
           </div>
         ) : (
-          <div className="ad-table-wrap">
+          <div className="ad-table-wrap" role="region" aria-label="Activity log" tabIndex={0}>
             <table className="ad-table">
               <thead>
                 <tr>

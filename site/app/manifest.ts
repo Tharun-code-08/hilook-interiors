@@ -4,7 +4,13 @@ import { getSettings } from "@/lib/repos/settings";
 /**
  * Web app manifest. Named from settings so a rebrand in the admin panel
  * carries through to the install prompt without a code change.
+ *
+ * Same trap as the sitemap: metadata routes are prerendered by default, so
+ * this was frozen with whatever the site was called at build time. Renaming
+ * the studio in the panel changed the site and not the install prompt.
  */
+export const dynamic = "force-dynamic";
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const settings = await getSettings();
 

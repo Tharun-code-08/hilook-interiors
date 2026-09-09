@@ -32,8 +32,20 @@
                                  An earlier revision used this as the button
                                  fill and claimed 4.6:1 against --hi-on-dark;
                                  the real figure is 2.86:1, which fails AA.
-     --hi-accent-strong #8A6A33  Fills that carry text. Against --hi-on-dark
-                                 this measures 4.50:1 (hover goes darker, never lighter).
+     --hi-accent-strong #82632F  Fills that carry text. Against --hi-on-dark
+                                 this measures 5.00:1 (hover goes darker, never
+                                 lighter).
+
+                                 It was #8A6A33, which measures 4.50:1 — the AA
+                                 threshold exactly. That is not a pass with a
+                                 small margin, it is a pass with none, and axe
+                                 read the rendered button at 4.32:1 and failed
+                                 it. A value sitting on the line fails
+                                 intermittently depending on how the browser
+                                 composites it, which is the worst kind of
+                                 accessibility bug: it looks fine, it passes
+                                 locally, and it is broken for the people who
+                                 need the contrast.
      --hi-accent-text   #846430  Small text on --hi-surface, where the lighter
                                  gold reaches only ~2.9:1. This is the role the
                                  two tokens diverge on: #8A6A33 measures
@@ -41,7 +53,7 @@
                                  original note rounded it to a pass. #846430
                                  measures 4.84:1 and is visually the same gold. */
   --hi-accent: #b08a4a;
-  --hi-accent-strong: #8a6a33;
+  --hi-accent-strong: #82632f;
   --hi-accent-lift: #75592b;
   --hi-accent-text: #846430;
 
@@ -108,6 +120,31 @@ a {
   outline: 2px solid var(--hi-accent-text);
   outline-offset: 3px;
   border-radius: 1px;
+}
+
+/* Visually hidden, still announced. Same clip-rect pattern the admin panel
+   uses; the public site had no equivalent, which is why the contact fields
+   ended up labelled by placeholder alone. */
+.hi-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Placeholder text.
+   The browser default resolves to about #A19E98, which is 2.37:1 on the cream
+   ground — well under AA, and these placeholders were doing the work of
+   labels. --hi-ink-soft is 5.13:1 on cream and 5.78:1 on white. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--hi-ink-soft);
+  opacity: 1; /* Firefox dims placeholders by default; undo it. */
 }
 
 /* Skip link — the first tab stop on the page, so a keyboard user can get past

@@ -163,6 +163,43 @@ All of this is backed by the SQL store described under **Database** above.
 Every mutation goes through `lib/repos/`, so a change of engine is a change to
 `lib/client.ts` and the repositories, not to any route or component.
 
+### Things that look handled and are not
+
+Three of these turned up in one verification pass, and they share a shape: a
+mechanism that appears to cover a case, next to a comment saying it does.
+
+- **`prefers-reduced-motion`.** `globals.css` flattens `animation-duration` and
+  `transition-duration` under the preference, which made the site look
+  compliant. `Reveal` — used by every section of the public site — animates
+  through framer-motion, which writes inline styles from JavaScript that no CSS
+  rule can reach. The whole page kept sliding and fading for someone who had
+  asked the system not to. It now checks `useReducedMotion()`.
+
+- **The sitemap and web manifest.** Both read from the database and both said
+  in their own comments that a change in the admin panel carries through
+  without a deploy. Next prerenders metadata routes by default, so both were
+  baked at build time: the sitemap shipped a fixed list of projects with a
+  build timestamp, and the manifest shipped whatever the studio was called when
+  it was built. Both are `force-dynamic` now, verified by adding a project
+  through the panel and watching the sitemap go from four URLs to five with no
+  rebuild.
+
+- **The contact form's success path.** There were tests for both ways a
+  submission can be rejected — bad email, honeypot — and none for it working.
+  For a studio whose enquiries are the business, the only untested path was the
+  one that matters. Now covered end to end: fill the form, wait out
+  `MIN_FILL_MS`, assert it appears in the admin inbox.
+
+The last one has a wrinkle worth knowing. `app/api/contact/route.ts` discards
+anything submitted within 3s of the form rendering, and returns the normal
+success shape when it does — telling a bot which check it tripped teaches the
+author to evade it. That is the right call for spam, but it means a false
+positive loses a client enquiry silently, with only a `console.warn` behind it.
+The 3s window starts when the form renders rather than when someone starts
+typing, so a human tripping it is close to impossible; if that ever needs to be
+tightened, store the discarded submission flagged as spam rather than dropping
+it.
+
 ### Why the admin pages are server components
 
 Every list screen renders its data on the server and hands it to the
