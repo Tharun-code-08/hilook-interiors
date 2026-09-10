@@ -1,27 +1,18 @@
-import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth";
-import { findUserById } from "@/lib/repos/operations";
+import { requireAdmin } from "@/lib/admin-session";
 import { ensureCsrfToken } from "@/lib/csrf-server";
 import AdminNav from "./AdminNav";
 import AdminProviders from "./components/AdminProviders";
 import { Banner } from "../components/ui";
 
 export default async function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSessionUser();
-  if (!session) {
-    redirect("/admin/login");
-  }
+  // Not the only check. Every page under this layout makes it too, because a
+  // layout is not re-rendered on client-side navigation — see
+  // lib/admin-session.ts. Shared through cache(), so it is still one lookup.
+  const { session, user: currentUser } = await requireAdmin();
 
   // Guarantees the CSRF cookie exists before any client code needs to echo it.
   // Middleware verifies the pairing on every admin mutation.
   await ensureCsrfToken();
-
-  const currentUser = await findUserById(session.sub);
-
-  // The session outlived the account it points at — treat as signed out.
-  if (!currentUser) {
-    redirect("/admin/login");
-  }
 
   return (
     <AdminProviders>

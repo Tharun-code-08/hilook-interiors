@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-session";
 import { recentAudit } from "@/lib/repos/operations";
 import { Badge } from "../../components/ui";
 
@@ -29,6 +30,8 @@ const ACTION_LABEL: Record<string, string> = {
 const NOTABLE = new Set(["login.failed", "password.change", "session.revoke", "delete"]);
 
 export default async function AdminActivityPage() {
+  // Before any query: the layout's check does not cover this page's data.
+  await requireAdmin();
   // 100, not 200. Nobody reads the two-hundredth row, and each one is DOM the
   // browser has to build before the page is usable — measured at the slowest
   // screen in the panel before this came down.

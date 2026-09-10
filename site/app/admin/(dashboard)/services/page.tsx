@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-session";
 import { listServices } from "@/lib/repos/content";
 import ServicesAdmin from "./ServicesAdmin";
 
@@ -10,6 +11,8 @@ import ServicesAdmin from "./ServicesAdmin";
  * holding when it rendered the page.
  */
 export default async function AdminServicesPage() {
+  // Before any query: the layout's check does not cover this page's data.
+  await requireAdmin();
   const services = await listServices();
   return <ServicesAdmin initial={services} />;
 }

@@ -602,6 +602,90 @@ test.describe("session revocation", () => {
     await stolen.dispose();
   });
 
+  /**
+   * The test above proves the API refuses a revoked token. This one covers the
+   * pages, which were not covered by that: the session check lived only in the
+   * dashboard layout, a layout is not re-rendered on client-side navigation,
+   * and on a full load the layout and page render together. A cookie copied
+   * before sign-out still received the inbox — whole, in the navigation
+   * payload, and inside the body of the redirect to sign-in.
+   */
+  test("a revoked session gets no page data, by client navigation or full load", async ({
+    page,
+    context,
+    request: api,
+  }) => {
+    const marker = `Revocation Probe ${Date.now()}`;
+
+    // The honeypot makes where it lands deterministic (Filtered). The inbox page
+    // ships both lists, so the marker is in its payload either way.
+    await api.post("/api/contact", {
+      data: {
+        name: marker,
+        email: "revocation@example.com",
+        phone: "",
+        message: "Only a signed-in operator should ever see this.",
+        website: "http://spam.example",
+      },
+    });
+
+    await signIn(page);
+    await page.goto("/admin/portfolio");
+
+    // The request the router makes on a client-side navigation: the page
+    // segment on its own, without the layout above it.
+    const seen: { headers?: Record<string, string> } = {};
+    page.on("request", (req) => {
+      const headers = req.headers();
+      // The navigation request itself: the first data request for the page that
+      // is not a prefetch. On the mobile project the capture once kept a later
+      // request instead, whose payload had the route's tree and none of its
+      // data, and the signed-in check below failed on a probe that saw nothing.
+      if (
+        !seen.headers &&
+        headers["next-router-prefetch"] === undefined &&
+        new URL(req.url()).pathname === "/admin/submissions" &&
+        headers["rsc"] === "1"
+      ) {
+        seen.headers = Object.fromEntries(
+          Object.entries(headers).filter(([name]) => name === "rsc" || name.startsWith("next-"))
+        );
+      }
+    });
+
+    const inbox = page.locator('nav[aria-label="Admin sections"] a[href="/admin/submissions"]');
+    await inbox.click();
+    await expect(inbox).toHaveAttribute("aria-current", "page");
+    if (!seen.headers) throw new Error("did not observe the router's navigation request");
+
+    const cookie = (await context.cookies()).find((c) => c.name === "hilook_session");
+    expect(cookie?.value, "expected a session cookie after signing in").toBeTruthy();
+
+    const replay = await request.newContext({
+      baseURL: page.url().split("/admin")[0],
+      extraHTTPHeaders: { Cookie: `hilook_session=${cookie!.value}` },
+    });
+
+    // While the session is live, the replay does carry the enquiry. Without this
+    // the assertions below would pass just as well for a probe that could never
+    // see anything.
+    const live = await replay.get("/admin/submissions?_rsc=live", { headers: seen.headers });
+    expect(await live.text(), "replay should see the inbox while signed in").toContain(marker);
+
+    await page.getByRole("button", { name: /log out/i }).click();
+    await expect(page).toHaveURL(/\/admin\/login/);
+
+    const navigation = await replay.get("/admin/submissions?_rsc=revoked", {
+      headers: seen.headers,
+    });
+    expect(await navigation.text(), "navigation payload after sign-out").not.toContain(marker);
+
+    const fullLoad = await replay.get("/admin/submissions", { maxRedirects: 0 });
+    expect(await fullLoad.text(), "full page response after sign-out").not.toContain(marker);
+
+    await replay.dispose();
+  });
+
   test("the signed-in device is listed and can be reviewed", async ({ page }) => {
     await signIn(page);
     await page.goto("/admin/password");

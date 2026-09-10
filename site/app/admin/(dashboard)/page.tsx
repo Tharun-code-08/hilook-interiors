@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-session";
 import Link from "next/link";
 import { summary } from "@/lib/repos/analytics";
 import { listProjects, listReviews } from "@/lib/repos/content";
@@ -233,6 +234,8 @@ function percentChange(current: number, previous: number): number | null {
 }
 
 export default async function AdminDashboardPage() {
+  // Before any query: the layout's check does not cover this page's data.
+  await requireAdmin();
   const DAY = 86_400_000;
   const day0 = new Date().setHours(0, 0, 0, 0);
 

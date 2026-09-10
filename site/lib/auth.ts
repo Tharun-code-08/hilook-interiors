@@ -104,6 +104,22 @@ export function verifySessionToken(token: string): SessionPayload | null {
  * Server Components and Route Handlers only (reads the httpOnly cookie).
  */
 export async function getSessionUser(): Promise<SessionPayload | null> {
+  const token = await readSessionToken();
+  if (!token) return null;
+  return (await isSessionLive(token)) ? token : null;
+}
+
+export type VerifiedToken = SessionPayload & { jti: string };
+
+/**
+ * The request's session token if it verifies — signature, expiry, and a jti.
+ *
+ * Half of authentication; isSessionLive is the other half. They are separate
+ * so a caller that also needs the account row can fetch it at the same time
+ * as the session record rather than after it (see lib/admin-session.ts): one
+ * database round trip fewer per request against a remote database.
+ */
+export async function readSessionToken(): Promise<VerifiedToken | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -116,14 +132,19 @@ export async function getSessionUser(): Promise<SessionPayload | null> {
   // of every revocation path this adds.
   if (!payload.jti) return null;
 
+  return payload as VerifiedToken;
+}
+
+/** Whether the token's session record is still live; bumps last-seen if so. */
+export async function isSessionLive(token: VerifiedToken): Promise<boolean> {
   // Imported here rather than at module scope: middleware.ts pulls the cookie
   // name out of this module's sibling, and dragging the database client into
   // that graph would break the Edge build.
   const { findLiveSession, touchSession } = await import("./repos/sessions");
 
-  const session = await findLiveSession(payload.jti);
-  if (!session || session.userId !== payload.sub) return null;
+  const session = await findLiveSession(token.jti);
+  if (!session || session.userId !== token.sub) return false;
 
   await touchSession(session);
-  return payload;
+  return true;
 }

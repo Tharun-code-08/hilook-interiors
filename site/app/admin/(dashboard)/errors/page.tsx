@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-session";
 import { listErrors } from "@/lib/repos/errors";
 import ErrorList, { type ErrorView } from "./ErrorList";
 
@@ -10,6 +11,8 @@ import ErrorList, { type ErrorView } from "./ErrorList";
  * know when something breaks. See lib/repos/errors.ts.
  */
 export default async function AdminErrorsPage() {
+  // Before any query: the layout's check does not cover this page's data.
+  await requireAdmin();
   const rows = await listErrors({ limit: 100 });
 
   const view: ErrorView[] = rows.map((row) => ({

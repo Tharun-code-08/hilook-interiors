@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/admin-session";
 import { countSubmissions, listSubmissions } from "@/lib/repos/operations";
 import SubmissionsAdmin from "./SubmissionsAdmin";
 
@@ -5,6 +6,8 @@ const SHOWN = 100;
 
 /** Server component: the enquiries ship in the HTML rather than being fetched. */
 export default async function AdminSubmissionsPage() {
+  // Before any query: the layout's check does not cover this page's data.
+  await requireAdmin();
   // Real and flagged are fetched separately rather than filtered in the
   // browser: the two lists are capped independently, so a spam run cannot push
   // genuine enquiries out of the page.
