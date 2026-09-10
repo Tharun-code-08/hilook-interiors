@@ -52,6 +52,30 @@ if (url.startsWith("file:")) {
   if (dir && dir !== ".") mkdirSync(dir, { recursive: true });
 }
 
+/**
+ * A serverless deployment with a file-backed database is misconfigured.
+ *
+ * Vercel gives each invocation a read-only filesystem and discards the
+ * container afterwards, so a file: URL there means writes either fail outright
+ * or land somewhere that is about to disappear. None of that is visible at
+ * build time: the build succeeds, the site comes up, and the first admin save
+ * is what tells you.
+ *
+ * Failing here says so plainly instead — the same reasoning as lib/auth.ts
+ * refusing to start without SESSION_SECRET rather than inventing one.
+ */
+if (process.env.VERCEL && url.startsWith("file:")) {
+  console.error(
+    [
+      "[migrate] TURSO_DATABASE_URL is not set, so this would use a local SQLite file.",
+      "[migrate] Vercel's filesystem is read-only and per-invocation, so every write",
+      "[migrate] would fail or vanish. Create a database at https://turso.tech and set",
+      "[migrate] TURSO_DATABASE_URL and TURSO_AUTH_TOKEN on the project.",
+    ].join("\n")
+  );
+  process.exit(1);
+}
+
 const client = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
 const db = drizzle(client);
 

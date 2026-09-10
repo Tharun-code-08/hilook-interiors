@@ -67,7 +67,18 @@ The app writes nothing to the filesystem at runtime once these are set:
 | `BLOB_READ_WRITE_TOKEN`                   | Otherwise uploads go to `.storage/` on local disk. Needs `npm install @vercel/blob`.                                    |
 | `NEXT_PUBLIC_SITE_URL`                    | Absolute URLs for canonicals, sitemap, and Open Graph.                                                                  |
 
-Run `npm run db:migrate` as a deploy step, before the app starts.
+`npm run db:migrate` has to run before the app starts. On Vercel that is
+already wired up: the `vercel-build` script runs migrations and then the build,
+and Vercel prefers `vercel-build` over `build` when it exists.
+
+The project's **root directory must be set to `site`** — the app is not at the
+repository root.
+
+`migrate.mjs` refuses to run on Vercel against a `file:` database. That
+combination is always a mistake: the filesystem there is read-only and
+per-invocation, so writes fail or vanish, and none of it shows at build time —
+the build succeeds, the site comes up, and the first admin save is what tells
+you. Failing the build says so instead.
 
 ## The hero video
 
