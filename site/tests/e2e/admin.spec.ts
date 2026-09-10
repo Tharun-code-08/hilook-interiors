@@ -227,6 +227,156 @@ test.describe("CRUD round trip", () => {
   });
 });
 
+/**
+ * The panel driven the way an owner drives it.
+ *
+ * The CRUD coverage above calls the API from inside the page, which proves the
+ * endpoints and the CSRF handshake and nothing about the screens. Every admin
+ * form — the one thing the owner actually touches — was unverified, and so was
+ * image upload, which reaches magic-byte validation, re-encoding and the
+ * storage driver on its way through.
+ *
+ * These click real controls. They are slower than an API call and worth it:
+ * a form that silently fails to submit is invisible to a test that never
+ * submits one.
+ *
+ * Note for anyone extending these: row values live in <input value="...">, so
+ * `body.innerText` does not contain them. Asserting on page text alone reports
+ * a working form as broken, which cost a debugging detour the first time.
+ */
+test.describe("admin forms", () => {
+  test.beforeEach(async ({ page }) => signIn(page));
+
+  /** True if the text appears in the page, or in any field's value. */
+  async function present(page: Page, needle: string): Promise<boolean> {
+    if ((await page.locator("body").innerText()).includes(needle)) return true;
+    const values = await page
+      .locator("input, textarea")
+      .evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    return values.some((v) => typeof v === "string" && v.includes(needle));
+  }
+
+  test("a service can be added from the form", async ({ page }) => {
+    const name = `Form Service ${Date.now()}`;
+    await page.goto("/admin/services");
+
+    await page.getByLabel("Name", { exact: true }).first().fill(name);
+    await page.getByRole("button", { name: "Add service" }).click();
+
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/admin/services");
+          return present(page, name);
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(true);
+  });
+
+  test("an image uploads and can be attached to a project", async ({ page }) => {
+    await page.goto("/admin/media");
+
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByText(/upload image/i).click();
+    // Awaited. Without it the navigation below tore the page down while the
+    // chooser was still resolving, and Playwright reported "Cannot find
+    // context with specified id" — which reads like a browser fault rather
+    // than a missing await.
+    await (await chooser).setFiles("public/images/about/featured.jpg");
+
+    // Upload re-encodes server-side, so this is not instant.
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/admin/media");
+          return page.locator(".ad-media-card").count();
+        },
+        { timeout: 30_000 }
+      )
+      .toBeGreaterThan(0);
+
+    // And the library picker can then hand it to a project.
+    const title = `Form Project ${Date.now()}`;
+    await page.goto("/admin/portfolio");
+    await page.getByLabel("Title", { exact: true }).first().fill(title);
+    await page
+      .getByRole("button", { name: /add from library/i })
+      .first()
+      .click();
+
+    const thumbnails = page.locator(".ad-modal .ad-thumb");
+    await expect(thumbnails.first()).toBeVisible({ timeout: 10_000 });
+    await thumbnails.first().click();
+
+    await page.getByRole("button", { name: "Add project" }).click();
+
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/admin/portfolio");
+          return present(page, title);
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(true);
+
+    // The owner's real test: it is on the public site.
+    await page.goto("/work");
+    await expect(page.getByText(title)).toBeVisible();
+  });
+
+  test("editing copy in the panel changes the public site", async ({ page }) => {
+    const tagline = `Form Tagline ${Date.now()}`;
+    await page.goto("/admin/content");
+
+    await page.getByLabel("Footer Tagline").fill(tagline);
+    await page
+      .getByRole("button", { name: /save changes/i })
+      .first()
+      .click();
+
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/");
+          return (await page.locator("body").innerText()).includes(tagline);
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(true);
+  });
+
+  test("deleting goes through the confirm dialog", async ({ page }) => {
+    const title = `Form Award ${Date.now()}`;
+    await page.goto("/admin/awards");
+
+    await page.getByLabel("Title", { exact: true }).first().fill(title);
+    await page.getByRole("button", { name: "Add entry" }).click();
+    await expect(page.getByText(title)).toBeVisible({ timeout: 15_000 });
+
+    await page
+      .locator("tr")
+      .filter({ hasText: title })
+      .getByRole("button", { name: /remove/i })
+      .click();
+
+    // The dialog replaced window.confirm; nothing is deleted until it is used.
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page.getByRole("button", { name: /remove entry/i }).click();
+
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/admin/awards");
+          return present(page, title);
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(false);
+  });
+});
+
 test.describe("security headers", () => {
   test("every response carries the hardening headers", async ({ request }) => {
     const res = await request.get("/");
@@ -507,8 +657,29 @@ test.describe("autosave", () => {
     await signIn(page);
     await page.goto("/admin/services");
 
-    const field = page.getByRole("textbox", { name: "Name" }).nth(1);
-    await field.fill("Saved on navigate");
+    // This test creates the row it edits rather than reaching for an existing
+    // one by index.
+    //
+    // Sharing a row with the burst-typing test above is a genuine race, not a
+    // flaky selector: that test leaves a debounced save in flight, the flush
+    // fires on unmount, and it lands *after* this test has written — quietly
+    // overwriting it. The autosave is behaving correctly; two tests editing
+    // one record is the problem.
+    const seed = `Debounce Row ${Date.now()}`;
+    await page.getByLabel("Name", { exact: true }).first().fill(seed);
+    await page.getByRole("button", { name: "Add service" }).click();
+
+    // A new service takes the highest order, so it is the last row. The
+    // burst-typing test above works on the first, which keeps the two apart.
+    //
+    // Located by position rather than by an attribute selector: React drives
+    // `value` as a property, so `input[value=...]` stops matching the moment
+    // anything is typed into it.
+    const field = page.locator("input.ad-input--title").last();
+    await expect(field).toHaveValue(seed, { timeout: 15_000 });
+
+    const edited = `${seed} edited`;
+    await field.fill(edited);
 
     // Leave immediately — well inside the debounce window. The unmount flush
     // is what has to carry this, and losing it is the failure mode a debounce
@@ -517,9 +688,7 @@ test.describe("autosave", () => {
     await expect(page).toHaveURL(new RegExp("/admin$"));
 
     await page.goto("/admin/services");
-    await expect(page.getByRole("textbox", { name: "Name" }).nth(1)).toHaveValue(
-      "Saved on navigate"
-    );
+    await expect(page.locator("input.ad-input--title").last()).toHaveValue(edited);
   });
 });
 
