@@ -1,0 +1,2 @@
+DROP INDEX `analytics_type_at_idx`;--> statement-breakpoint
+CREATE INDEX `analytics_dashboard_idx` ON `analytics_events` (`type`,`at`,`section`,`referrer_host`,`device_class`,`browser`,`visitor_hash`);

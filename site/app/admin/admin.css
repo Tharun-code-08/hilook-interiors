@@ -241,6 +241,41 @@
   margin-left: auto;
 }
 
+/* The clicked link's loading mark (PendingMark in AdminNav.tsx).
+
+   Hidden for its first 120ms, so a page that arrives within a couple of frames
+   never flashes it, and only spinning while pending, so an idle sidebar runs
+   no animation at all. Drawn in currentColor, so it takes the link's own ink
+   in both the resting and the active state. */
+.ad-nav-pending {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.ad-nav-pending.is-pending {
+  opacity: 0.7;
+  transition-delay: 0.12s;
+  animation: ad-spin 0.7s linear infinite;
+}
+
+/* Both marks sit at the end of the row; the first one takes the auto margin. */
+.ad-nav-pending + .ad-nav-dot {
+  margin-left: 0;
+}
+
+@keyframes ad-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .ad-sidebar-foot {
   border-top: 1px solid var(--ad-side-line);
   padding: 14px 10px 4px;
@@ -912,9 +947,13 @@
   margin-bottom: 5px;
 }
 
+/* No text-transform. It was capitalize, applied to every label that passes
+   through here — which turned referrer hosts into "Instagram.Com" and the
+   funnel's sentence-case steps into "Sent An Enquiry". Only section and device
+   names arrive as lowercase identifiers, so those are capitalised where they
+   are rendered and everything else shows as written. */
 .ad-bar-label {
   color: var(--ad-ink);
-  text-transform: capitalize;
 }
 
 .ad-bar-value {
@@ -1390,5 +1429,13 @@ label.ad-btn.is-busy {
   .ad * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  /* The rule above would turn the spinner into a strobe — a turn every
+     0.01ms lands at a random angle each frame. A still ring instead. */
+  .ad-nav-pending.is-pending {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.45;
   }
 }

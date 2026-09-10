@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/admin-session";
 import Link from "next/link";
-import { summary } from "@/lib/repos/analytics";
+import { BREAKDOWN_DAYS, breakdownWindowStart, summary } from "@/lib/repos/analytics";
 import { listProjects, listReviews } from "@/lib/repos/content";
 import { recentAudit, submissionStats, submissionsBetween } from "@/lib/repos/operations";
 import type { AuditEntry } from "@/lib/types";
@@ -70,6 +70,11 @@ function StatCard({
   );
 }
 
+/** "portfolio" -> "Portfolio". For the stored identifiers only, never hostnames. */
+function capitalise(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 /** One ranked row: a label, its value, and a bar showing share of the leader. */
 function Bar({ label, value, max }: { label: string; value: number; max: number }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -134,7 +139,7 @@ function TrendChart({ days }: { days: { key: string; label: string; value: numbe
 /**
  * Visit → reached the contact section → submitted an enquiry.
  *
- * These are cumulative totals from different counters, so the funnel shows
+ * These are totals over the same window from different counters, so the funnel shows
  * proportion, not a cohort. Labelled as such rather than implying a tracked
  * journey it can't yet support.
  */
@@ -245,16 +250,26 @@ export default async function AdminDashboardPage() {
   // One Promise.all, not one plus two trailing awaits: the two submission
   // windows were sequential at the end for no reason, adding two round trips
   // to every dashboard render.
-  const [analytics, submissions, projects, reviews, activity, submissionsLast7, submissionsPrior7] =
-    await Promise.all([
-      summary(),
-      submissionStats(),
-      listProjects(),
-      listReviews(),
-      recentAudit(20),
-      submissionsBetween(day0 - 6 * DAY, Date.now()),
-      submissionsBetween(day0 - 13 * DAY, day0 - 6 * DAY),
-    ]);
+  const [
+    analytics,
+    submissions,
+    projects,
+    reviews,
+    activity,
+    submissionsLast7,
+    submissionsPrior7,
+    submissionsInWindow,
+  ] = await Promise.all([
+    summary(),
+    submissionStats(),
+    listProjects(),
+    listReviews(),
+    recentAudit(20),
+    submissionsBetween(day0 - 6 * DAY, Date.now()),
+    submissionsBetween(day0 - 13 * DAY, day0 - 6 * DAY),
+    // The funnel's last step, counted over the same window as its first two.
+    submissionsBetween(breakdownWindowStart(), Date.now()),
+  ]);
 
   const unread = submissions.unread;
   const maxSection = analytics.sections[0]?.value ?? 0;
@@ -342,14 +357,16 @@ export default async function AdminDashboardPage() {
             <div className="ad-card-head">
               <div>
                 <h2 className="ad-card-title">Enquiry funnel</h2>
-                <p className="ad-card-sub">All-time proportions, not a tracked cohort.</p>
+                <p className="ad-card-sub">
+                  Last {BREAKDOWN_DAYS} days. Proportions, not a tracked cohort.
+                </p>
               </div>
             </div>
             <div className="ad-card-body">
               <Funnel
-                visits={analytics.totalViews}
+                visits={analytics.viewsInWindow}
                 reachedContact={analytics.reachedContact}
-                submitted={submissions.total}
+                submitted={submissionsInWindow}
               />
             </div>
           </section>
@@ -367,14 +384,17 @@ export default async function AdminDashboardPage() {
         <div className="ad-cols">
           <section className="ad-card">
             <div className="ad-card-head">
-              <h2 className="ad-card-title">Popular sections</h2>
+              <div>
+                <h2 className="ad-card-title">Popular sections</h2>
+                <p className="ad-card-sub">Last {BREAKDOWN_DAYS} days</p>
+              </div>
             </div>
             <div className="ad-card-body">
               {analytics.sections.length === 0 ? (
                 <p className="ad-muted">No section views recorded yet.</p>
               ) : (
                 analytics.sections.map((s) => (
-                  <Bar key={s.name} label={s.name} value={s.value} max={maxSection} />
+                  <Bar key={s.name} label={capitalise(s.name)} value={s.value} max={maxSection} />
                 ))
               )}
             </div>
@@ -382,14 +402,17 @@ export default async function AdminDashboardPage() {
 
           <section className="ad-card">
             <div className="ad-card-head">
-              <h2 className="ad-card-title">Devices</h2>
+              <div>
+                <h2 className="ad-card-title">Devices</h2>
+                <p className="ad-card-sub">Last {BREAKDOWN_DAYS} days</p>
+              </div>
             </div>
             <div className="ad-card-body">
               {analytics.devices.length === 0 ? (
                 <p className="ad-muted">No device data yet.</p>
               ) : (
                 analytics.devices.map((d) => (
-                  <Bar key={d.name} label={d.name} value={d.value} max={maxDevice} />
+                  <Bar key={d.name} label={capitalise(d.name)} value={d.value} max={maxDevice} />
                 ))
               )}
               {analytics.browsers.length > 0 && (
@@ -402,7 +425,10 @@ export default async function AdminDashboardPage() {
 
           <section className="ad-card">
             <div className="ad-card-head">
-              <h2 className="ad-card-title">Traffic sources</h2>
+              <div>
+                <h2 className="ad-card-title">Traffic sources</h2>
+                <p className="ad-card-sub">Last {BREAKDOWN_DAYS} days</p>
+              </div>
             </div>
             <div className="ad-card-body">
               {analytics.referrers.length === 0 ? (

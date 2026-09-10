@@ -118,6 +118,23 @@ export async function recordSectionView(input: {
  * Reads
  * ---------------------------------------------------------------------- */
 
+/**
+ * How far back the dashboard's breakdowns look.
+ *
+ * They used to be all-time, which made them both the slowest thing in the
+ * panel and the least useful: an all-time referrer list is dominated by
+ * whatever sent traffic in the first month and never moves again. Each of the
+ * four walked every event the site had ever recorded, so the dashboard got
+ * slower with every visitor — 724ms for the four together at 140k events. A
+ * fixed window keeps the cost proportional to recent traffic instead.
+ */
+export const BREAKDOWN_DAYS = 30;
+
+/** UTC midnight at the start of the breakdown window, which includes today. */
+export function breakdownWindowStart(now = Date.now()): number {
+  return startOfDay(now) - (BREAKDOWN_DAYS - 1) * DAY_MS;
+}
+
 export type AnalyticsSummary = {
   totalViews: number;
   viewsLast7: number;
@@ -125,6 +142,9 @@ export type AnalyticsSummary = {
   uniqueLast7: number;
   uniquePrior7: number;
   dailyViews: { day: string; value: number }[];
+  /** Page views inside the breakdown window (see BREAKDOWN_DAYS). */
+  viewsInWindow: number;
+  /** This and the fields below cover the breakdown window, not all time. */
   sections: { name: string; value: number }[];
   referrers: { host: string; value: number }[];
   devices: { name: string; value: number }[];
@@ -138,15 +158,21 @@ export async function summary(): Promise<AnalyticsSummary> {
   const day0 = startOfDay(now);
   const from7 = day0 - 6 * DAY_MS;
   const from14 = day0 - 13 * DAY_MS;
+  const windowStart = breakdownWindowStart(now);
 
   const pageviews = eq(t.analyticsEvents.type, "pageview");
 
-  // All ten of these are independent, and they were awaited one after another
-  // — ten sequential round trips. Against a local SQLite file that is cheap
+  // All of these are independent, and they were awaited one after another
+  // — one round trip after the next. Against a local SQLite file that is cheap
   // enough to hide; against Turso every one is a network hop, so the dashboard
   // paid ten of them in series before it could render a single number.
   //
   // Nothing here depends on anything else here, so they go out together.
+  //
+  // That only helps against a remote database. On a local file they queue on
+  // the one connection — measured, all at once took as long as one after
+  // another — so each query also has to be cheap on its own. That is what
+  // BREAKDOWN_DAYS and analytics_dashboard_idx are for.
   const [
     totalRow,
     last7Row,
@@ -158,6 +184,7 @@ export async function summary(): Promise<AnalyticsSummary> {
     referrerRows,
     deviceRows,
     browserRows,
+    viewsInWindowRow,
   ] = await Promise.all([
     db
       .select({ n: sql<number>`count(*)` })
@@ -211,14 +238,26 @@ export async function summary(): Promise<AnalyticsSummary> {
     db
       .select({ name: t.analyticsEvents.section, value: sql<number>`count(*)` })
       .from(t.analyticsEvents)
-      .where(and(eq(t.analyticsEvents.type, "section"), isNotNull(t.analyticsEvents.section)))
+      .where(
+        and(
+          eq(t.analyticsEvents.type, "section"),
+          gte(t.analyticsEvents.at, windowStart),
+          isNotNull(t.analyticsEvents.section)
+        )
+      )
       .groupBy(t.analyticsEvents.section)
       .orderBy(desc(sql`count(*)`)),
 
     db
       .select({ host: t.analyticsEvents.referrerHost, value: sql<number>`count(*)` })
       .from(t.analyticsEvents)
-      .where(and(pageviews, isNotNull(t.analyticsEvents.referrerHost)))
+      .where(
+        and(
+          pageviews,
+          gte(t.analyticsEvents.at, windowStart),
+          isNotNull(t.analyticsEvents.referrerHost)
+        )
+      )
       .groupBy(t.analyticsEvents.referrerHost)
       .orderBy(desc(sql`count(*)`))
       .limit(8),
@@ -226,17 +265,31 @@ export async function summary(): Promise<AnalyticsSummary> {
     db
       .select({ name: t.analyticsEvents.deviceClass, value: sql<number>`count(*)` })
       .from(t.analyticsEvents)
-      .where(and(pageviews, isNotNull(t.analyticsEvents.deviceClass)))
+      .where(
+        and(
+          pageviews,
+          gte(t.analyticsEvents.at, windowStart),
+          isNotNull(t.analyticsEvents.deviceClass)
+        )
+      )
       .groupBy(t.analyticsEvents.deviceClass)
       .orderBy(desc(sql`count(*)`)),
 
     db
       .select({ name: t.analyticsEvents.browser, value: sql<number>`count(*)` })
       .from(t.analyticsEvents)
-      .where(and(pageviews, isNotNull(t.analyticsEvents.browser)))
+      .where(
+        and(pageviews, gte(t.analyticsEvents.at, windowStart), isNotNull(t.analyticsEvents.browser))
+      )
       .groupBy(t.analyticsEvents.browser)
       .orderBy(desc(sql`count(*)`))
       .limit(6),
+
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(t.analyticsEvents)
+      .where(and(pageviews, gte(t.analyticsEvents.at, windowStart)))
+      .then((r) => r[0]),
   ]);
 
   const dailyMap = new Map(dailyRows.map((r) => [r.day, Number(r.value)]));
@@ -256,6 +309,7 @@ export async function summary(): Promise<AnalyticsSummary> {
     uniqueLast7: Number(uniqueLast7Row?.n ?? 0),
     uniquePrior7: Number(uniquePrior7Row?.n ?? 0),
     dailyViews,
+    viewsInWindow: Number(viewsInWindowRow?.n ?? 0),
     sections,
     referrers: referrerRows.map((r) => ({ host: r.host ?? "direct", value: Number(r.value) })),
     devices: deviceRows.map((r) => ({ name: r.name ?? "unknown", value: Number(r.value) })),

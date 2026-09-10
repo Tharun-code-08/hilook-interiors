@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { adminFetch } from "@/lib/admin-client";
 import { Button } from "../components/ui";
@@ -43,6 +43,24 @@ const SECTIONS = [
   },
 ] as const;
 
+/**
+ * Shown on the link that was just clicked, until the page it opens arrives.
+ *
+ * Without it a click changed nothing on screen until the next page had been
+ * rendered on the server: under a tenth of a second on most screens, but close
+ * to one on the dashboard, which is long enough to wonder whether the click
+ * registered and click again. It reads the link's own navigation state, so it
+ * needs no shared context and cannot be left spinning on a link that has
+ * finished loading.
+ *
+ * Its appearance is delayed in admin.css, so a navigation that lands within a
+ * couple of frames never shows it.
+ */
+function PendingMark() {
+  const { pending } = useLinkStatus();
+  return <span aria-hidden="true" className={`ad-nav-pending${pending ? " is-pending" : ""}`} />;
+}
+
 export default function AdminNav({
   username,
   role,
@@ -76,6 +94,7 @@ export default function AdminNav({
             aria-current={pathname === "/admin" ? "page" : undefined}
           >
             Dashboard
+            <PendingMark />
           </Link>
         </li>
 
@@ -96,6 +115,7 @@ export default function AdminNav({
                   aria-current={active ? "page" : undefined}
                 >
                   {link.label}
+                  <PendingMark />
                   {/* Marks the one item the operator has to act on before the
                       panel is safe to use. */}
                   {link.href === "/admin/password" && mustChangePassword && (
