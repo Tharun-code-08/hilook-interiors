@@ -141,13 +141,13 @@ export default async function ProjectPage({ params }: Params) {
                 }}
               >
                 <li>
-                  <Link href="/" style={{ textDecoration: "none" }}>
+                  <Link href="/" className="hi-crumb-link">
                     Home
                   </Link>
                 </li>
                 <li aria-hidden>/</li>
                 <li>
-                  <Link href="/work" style={{ textDecoration: "none" }}>
+                  <Link href="/work" className="hi-crumb-link">
                     Work
                   </Link>
                 </li>
@@ -310,16 +310,7 @@ function ProjectCard({
 }) {
   return (
     <Link href={`/work/${project.slug}`} className="hi-project-card hi-focusable">
-      <span
-        style={{
-          position: "relative",
-          display: "block",
-          aspectRatio: "4 / 5",
-          overflow: "hidden",
-          marginBottom: "0.9rem",
-          background: "linear-gradient(155deg, #173F35 0%, #26231F 100%)",
-        }}
-      >
+      <span className="hi-project-media">
         {project.images[0] && (
           <Image
             src={project.images[0]}
@@ -332,16 +323,8 @@ function ProjectCard({
           />
         )}
       </span>
-      <span
-        style={{
-          display: "block",
-          fontFamily: "var(--font-playfair)",
-          fontSize: "1.1rem",
-          color: "var(--hi-ink)",
-        }}
-      >
-        {project.title}
-      </span>
+      <span className="hi-project-title">{project.title}</span>
+      <span className="hi-project-category">{project.category}</span>
     </Link>
   );
 }

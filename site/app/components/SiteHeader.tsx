@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+
+import { EASE } from "./motion-tokens";
 
 /**
  * The public site had no navigation at all (finding H8) — no logo, no menu,
@@ -39,6 +42,8 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
 
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const reducedMotion = useReducedMotion();
 
   // Transparent while the hero is on screen, solid once past it.
   //
@@ -107,6 +112,15 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
   useEffect(() => {
     if (!menuOpen) return;
 
+    // A modal dialog takes focus when it opens. Without this, focus stayed on
+    // the toggle, now underneath the overlay, and the dialog could only be
+    // reached by tabbing into it blind.
+    //
+    // The close control specifically, not the first focusable element: the
+    // brand link comes first in the drawer, and landing on it would make a
+    // reflexive Enter navigate away instead of closing the menu.
+    closeRef.current?.focus();
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMenuOpen(false);
@@ -152,12 +166,20 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
           left: 0,
           right: 0,
           zIndex: 80,
-          transition: "background 0.4s var(--hi-ease), box-shadow 0.4s var(--hi-ease)",
-          background: solid ? "rgba(244,241,234,0.92)" : "transparent",
-          backdropFilter: solid ? "saturate(140%) blur(12px)" : "none",
-          boxShadow: solid ? "0 1px 0 var(--hi-rule)" : "none",
         }}
       >
+        {/*
+          The frosted ground is its own layer, faded in and out by opacity.
+
+          It used to be three inline properties on the header, and only two of
+          them transitioned: background and box-shadow eased over 0.4s while
+          backdrop-filter switched on the first frame. Measured going solid,
+          the full 12px blur was applied at 0ms with the tint still fully
+          transparent, and the tint only reached 0.4 alpha about 40ms later —
+          so the footage under the bar fogged over before any colour arrived.
+          On one layer the blur and the tint cannot come apart.
+        */}
+        <span aria-hidden="true" className="hi-header-ground" />
         <div
           className="hi-container"
           style={{
@@ -192,14 +214,13 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
                     <a
                       href={sectionHref(section)}
                       aria-current={isActive ? "true" : undefined}
+                      className="hi-nav-link hi-underline"
                       style={{
                         fontFamily: "var(--font-inter), system-ui, sans-serif",
                         fontSize: "0.7rem",
                         letterSpacing: "0.16em",
                         textTransform: "uppercase",
                         textDecoration: "none",
-                        paddingBottom: 4,
-                        borderBottom: `1px solid ${isActive ? "var(--hi-accent)" : "transparent"}`,
                         color: onDark
                           ? isActive
                             ? "var(--hi-accent-lift)"
@@ -207,7 +228,6 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
                           : isActive
                             ? "var(--hi-accent-text)"
                             : "var(--hi-ink-muted)",
-                        transition: "color 0.3s var(--hi-ease), border-color 0.3s var(--hi-ease)",
                       }}
                     >
                       {section.label}
@@ -232,15 +252,10 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
               display: "inline-flex",
               alignItems: "center",
               borderRadius: 2,
-              // --hi-accent here measured 2.86:1 against --hi-on-dark, which
-              // fails AA. Text-bearing fills take --hi-accent-strong; the token
-              // note in globals.css spells out the split.
-              background: onDark ? "rgba(248,242,232,0.14)" : "var(--hi-accent-strong)",
-              color: "var(--hi-on-dark)",
-              border: onDark
-                ? "1px solid rgba(248,242,232,0.34)"
-                : "1px solid var(--hi-accent-strong)",
-              transition: "background 0.3s var(--hi-ease), border-color 0.3s var(--hi-ease)",
+              // Fill, border and both hover states are in globals.css, keyed to
+              // the header's data-solid attribute. A :hover rule cannot beat an
+              // inline background, so while these lived here the button had no
+              // hover state at all.
               whiteSpace: "nowrap",
             }}
           >
@@ -266,91 +281,163 @@ export default function SiteHeader({ siteName }: { siteName: string }) {
               color: onDark ? "var(--hi-on-dark)" : "var(--hi-ink)",
             }}
           >
-            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none">
-              {menuOpen ? (
-                <path
-                  d="M4 4l14 14M18 4L4 18"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              ) : (
-                <path
-                  d="M3 6h16M3 11h16M3 16h16"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              )}
-            </svg>
+            {menuOpen ? <CloseIcon /> : <MenuIcon />}
           </button>
         </div>
       </header>
 
-      {menuOpen && (
-        <div
-          ref={menuRef}
-          id="hi-mobile-menu"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Site menu"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 90,
-            background: "var(--hi-surface-dark)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            padding: "2rem clamp(1.5rem, 8vw, 4rem)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              toggleRef.current?.focus();
-            }}
-            aria-label="Close menu"
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            ref={menuRef}
+            id="hi-mobile-menu"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site menu"
+            // Fades in over the page rather than cutting to it. The exit is
+            // shorter than the entrance, as exits should be: by the time
+            // someone closes a menu they have already decided where to go.
+            initial={reducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : 0.2, ease: "linear" } }}
+            transition={{ duration: 0.32, ease: EASE }}
             style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              width: 44,
-              height: 44,
-              background: "transparent",
-              border: "none",
-              color: "var(--hi-on-dark)",
-              fontSize: "1.5rem",
+              position: "fixed",
+              inset: 0,
+              zIndex: 90,
+              background: "var(--hi-surface-dark)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              padding: "2rem 0",
             }}
           >
-            ×
-          </button>
+            {/*
+              The header's own bar, rebuilt on the dark ground: same container,
+              same height, brand left, control right.
 
-          <nav aria-label="Sections">
-            <ul style={{ listStyle: "none", display: "grid", gap: "0.5rem", margin: 0 }}>
-              {[...SECTIONS, { id: "contact", label: "Contact" } as const].map((section) => (
-                <li key={section.id}>
-                  <a
-                    href={sectionHref(section)}
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      display: "block",
-                      padding: "0.7rem 0",
-                      fontFamily: "var(--font-playfair), Georgia, serif",
-                      fontSize: "1.75rem",
-                      color: "var(--hi-on-dark)",
-                      textDecoration: "none",
-                    }}
+              The close button used to sit a fixed 12px from the edge while the
+              toggle it covers sits on the container gutter, so opening the menu
+              moved the control out from under the thumb that pressed it — 8px
+              on a phone, 29px at 820px wide — and swapped the drawn mark for a
+              text "×" of another weight. The brand vanished under the overlay
+              too. Sharing the header's geometry means the only thing that
+              changes on open is the mark itself, which cross-fades in place.
+            */}
+            <div
+              className="hi-container"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 68,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "1.5rem",
+              }}
+            >
+              <Link
+                href="/"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  fontFamily: "var(--font-playfair), Georgia, serif",
+                  fontSize: "1.05rem",
+                  letterSpacing: "0.02em",
+                  textDecoration: "none",
+                  color: "var(--hi-on-dark)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {siteName}
+              </Link>
+
+              <button
+                ref={closeRef}
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  toggleRef.current?.focus();
+                }}
+                aria-label="Close menu"
+                style={{
+                  width: 44,
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--hi-on-dark)",
+                }}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            {/* On the container too, so the links share the brand's left edge. */}
+            <nav aria-label="Sections" className="hi-container">
+              <ul style={{ listStyle: "none", display: "grid", gap: "0.5rem", margin: 0 }}>
+                {[...SECTIONS, { id: "contact", label: "Contact" } as const].map((section, i) => (
+                  <motion.li
+                    key={section.id}
+                    initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.08 + i * 0.03, ease: EASE }}
                   >
-                    {section.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-      )}
+                    <a
+                      href={sectionHref(section)}
+                      onClick={() => setMenuOpen(false)}
+                      style={{
+                        display: "block",
+                        padding: "0.7rem 0",
+                        fontFamily: "var(--font-playfair), Georgia, serif",
+                        fontSize: "1.75rem",
+                        color: "var(--hi-on-dark)",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {section.label}
+                    </a>
+                  </motion.li>
+                ))}
+              </ul>
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
+  );
+}
+
+/**
+ * The menu control's two marks. Shared by the header toggle and the drawer's
+ * close button, so the X that appears on open is the same drawn mark in the
+ * same place rather than a font glyph standing in for it.
+ */
+function MenuIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none">
+      <path
+        d="M3 6h16M3 11h16M3 16h16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" fill="none">
+      <path
+        d="M4 4l14 14M18 4L4 18"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
-const EASE = [0.25, 0, 0, 1] as const;
+import { EASE } from "./motion-tokens";
 
 /**
  * Fades content up as it scrolls into view. Used by every section of the
@@ -20,6 +20,25 @@ const EASE = [0.25, 0, 0, 1] as const;
  * scans deterministic, since axe was otherwise sampling colours part-way
  * through a fade and reading contrast ratios that existed for 300ms.
  */
+
+/** How far content travels: enough to read as arriving, not as sliding. */
+const TRAVEL_PX = 14;
+const DURATION_S = 0.62;
+
+/**
+ * Per-item delay, and the ceiling on it.
+ *
+ * The delay used to be `index * 0.1` with nothing capping it, and two callers
+ * pass a list index straight through. A twelve-project grid therefore left its
+ * last card waiting 1.2s after it had already scrolled into view, which does
+ * not read as a stagger — it reads as a page that has stopped working.
+ *
+ * Capped, the effect is what a stagger is actually for: enough offset to feel
+ * like the items arrived in order, over before anyone waits on it.
+ */
+const STAGGER_S = 0.07;
+const MAX_STAGGERED_ITEMS = 5;
+
 export default function Reveal({
   children,
   index = 0,
@@ -45,10 +64,16 @@ export default function Reveal({
     <motion.div
       className={className}
       style={style}
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: TRAVEL_PX }}
       whileInView={{ opacity: 1, y: 0 }}
+      // once: the content settles and stays settled. Re-animating on every
+      // pass turns scrolling back up into a performance.
       viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.7, delay: index * 0.1, ease: EASE }}
+      transition={{
+        duration: DURATION_S,
+        delay: Math.min(index, MAX_STAGGERED_ITEMS) * STAGGER_S,
+        ease: EASE,
+      }}
     >
       {children}
     </motion.div>

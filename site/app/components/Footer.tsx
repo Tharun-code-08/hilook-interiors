@@ -1,18 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import type { Settings } from "@/lib/types";
 
-const NAV = [
-  { href: "#about", label: "About" },
-  { href: "#services", label: "Services" },
-  { href: "#portfolio", label: "Projects" },
-  { href: "#process", label: "Process" },
-  { href: "#reviews", label: "Reviews" },
-  { href: "#contact", label: "Contact" },
+/**
+ * Section links, resolved against the page the footer is on.
+ *
+ * These were bare "#about" hrefs. The footer also renders on /work and on
+ * every project page, where there is no #about to scroll to, so every link in
+ * this list did nothing off the home page. The header had already been fixed
+ * for exactly this; the footer had been left behind.
+ */
+const NAV: { id: string; label: string; href?: string }[] = [
+  { id: "about", label: "About" },
+  { id: "services", label: "Services" },
+  // A real route, as in the header: /work is the crawlable index.
+  { id: "portfolio", label: "Projects", href: "/work" },
+  { id: "process", label: "Process" },
+  { id: "reviews", label: "Reviews" },
+  { id: "contact", label: "Contact" },
 ];
 
 export default function Footer({ settings }: { settings: Settings }) {
+  const onHome = usePathname() === "/";
+  const hrefFor = (item: (typeof NAV)[number]) =>
+    item.href ?? (onHome ? `#${item.id}` : `/#${item.id}`);
+
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,14 +106,11 @@ export default function Footer({ settings }: { settings: Settings }) {
             </p>
             <ul style={{ listStyle: "none", display: "grid", gap: "0.6rem" }}>
               {NAV.map((n) => (
-                <li key={n.href}>
+                <li key={n.id}>
                   <a
-                    href={n.href}
-                    style={{
-                      fontFamily: "var(--font-inter)",
-                      fontSize: "0.85rem",
-                      color: "rgba(244,241,234,0.75)",
-                    }}
+                    href={hrefFor(n)}
+                    className="hi-footer-link hi-underline"
+                    style={{ fontFamily: "var(--font-inter)", fontSize: "0.85rem" }}
                   >
                     {n.label}
                   </a>
@@ -119,7 +130,8 @@ export default function Footer({ settings }: { settings: Settings }) {
                     href={settings.instagramUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                    className="hi-footer-link hi-underline"
+                    style={{ fontSize: "0.85rem" }}
                   >
                     Instagram
                   </a>
@@ -131,7 +143,8 @@ export default function Footer({ settings }: { settings: Settings }) {
                     href={settings.pinterestUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                    className="hi-footer-link hi-underline"
+                    style={{ fontSize: "0.85rem" }}
                   >
                     Pinterest
                   </a>
@@ -143,7 +156,8 @@ export default function Footer({ settings }: { settings: Settings }) {
                     href={settings.facebookUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: "0.85rem", color: "rgba(244,241,234,0.75)" }}
+                    className="hi-footer-link hi-underline"
+                    style={{ fontSize: "0.85rem" }}
                   >
                     Facebook
                   </a>
@@ -206,13 +220,8 @@ export default function Footer({ settings }: { settings: Settings }) {
                 />
                 <button
                   type="submit"
+                  className="hi-footer-join"
                   style={{
-                    // --hi-accent is decoration-only (2.87:1 under this text).
-                    // Text-bearing fills use --hi-accent-strong; see the token
-                    // note in globals.css.
-                    background: "var(--hi-accent-strong)",
-                    color: "var(--hi-on-dark)",
-                    border: "none",
                     padding: "0.6rem 1rem",
                     fontFamily: "var(--font-inter)",
                     fontSize: "0.7rem",

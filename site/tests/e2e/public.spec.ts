@@ -82,6 +82,41 @@ test.describe("public site", () => {
     await expect(header).toHaveAttribute("data-solid", "true", { timeout: 10_000 });
   });
 
+  test("the mobile menu takes focus when it opens and gives it back", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "The menu toggle only renders below 880px.");
+    await page.goto("/");
+
+    const toggle = page.getByRole("button", { name: "Open menu" });
+    const toggleBox = await toggle.boundingBox();
+    await toggle.click();
+
+    // An aria-modal dialog that left focus behind it: the toggle sat under the
+    // overlay, and the menu could only be reached by tabbing into it blind.
+    const dialog = page.getByRole("dialog", { name: "Site menu" });
+    const close = dialog.getByRole("button", { name: "Close menu" });
+    await expect(dialog).toBeVisible();
+    await expect(close).toBeFocused();
+
+    // The control also has to stay where it was pressed. The close button sat
+    // 12px from the edge while the toggle sits on the container gutter, so the
+    // X appeared 8px to the side of the thumb that had just tapped it, and
+    // further still on wider screens.
+    const closeBox = await close.boundingBox();
+    if (!toggleBox || !closeBox) throw new Error("menu controls have no layout box");
+    expect(Math.abs(closeBox.x - toggleBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(closeBox.y - toggleBox.y)).toBeLessThanOrEqual(1);
+
+    await page.keyboard.press("Escape");
+
+    // The menu fades out before it unmounts. Wait for it to be gone rather
+    // than asserting against a frame of the exit.
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeFocused();
+  });
+
   test("portfolio cards are crawlable links to project pages", async ({ page }) => {
     await page.goto("/");
     await page.locator("#portfolio").scrollIntoViewIfNeeded();
@@ -207,6 +242,29 @@ test.describe("project routes", () => {
     // test above.
     const res = await page.goto("/work/hillside-residence");
     expect(res?.status()).toBe(200);
+  });
+
+  test("footer section links lead back to the home page", async ({ page }) => {
+    await page.goto("/work/hillside-residence");
+
+    // These were bare "#about" hrefs, which resolve against the current URL.
+    // On a project page every one pointed at a section that is not there, and
+    // clicking it did nothing at all.
+    const footer = page.locator("footer");
+    const about = footer.getByRole("link", { name: "About", exact: true });
+    await expect(about).toHaveAttribute("href", "/#about");
+    await expect(footer.getByRole("link", { name: "Contact", exact: true })).toHaveAttribute(
+      "href",
+      "/#contact"
+    );
+    await expect(footer.getByRole("link", { name: "Projects", exact: true })).toHaveAttribute(
+      "href",
+      "/work"
+    );
+
+    await about.click();
+    await expect(page).toHaveURL(/\/#about$/);
+    await expect(page.locator("#about")).toBeAttached();
   });
 
   test("the sitemap lists every project", async ({ request }) => {

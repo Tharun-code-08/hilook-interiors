@@ -33,7 +33,9 @@ const PUCK: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   textDecoration: "none",
-  transition: "transform var(--hi-dur) var(--hi-ease), box-shadow var(--hi-dur) var(--hi-ease)",
+  // The hover lift is .hi-puck in globals.css. This transition used to name
+  // transform and box-shadow with no hover rule anywhere to drive either.
+  transition: "transform var(--hi-dur) var(--hi-ease)",
 };
 
 export default function FloatingContactButton({ settings }: { settings: Settings }) {

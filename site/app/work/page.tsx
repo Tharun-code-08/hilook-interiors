@@ -104,7 +104,7 @@ export default async function WorkIndexPage() {
               }}
             >
               <li>
-                <Link href="/" style={{ textDecoration: "none" }}>
+                <Link href="/" className="hi-crumb-link">
                   Home
                 </Link>
               </li>
@@ -152,16 +152,7 @@ export default async function WorkIndexPage() {
               {projects.map((project) => (
                 <li key={project.id}>
                   <Link href={`/work/${project.slug}`} className="hi-project-card hi-focusable">
-                    <span
-                      style={{
-                        position: "relative",
-                        display: "block",
-                        aspectRatio: "4 / 5",
-                        overflow: "hidden",
-                        marginBottom: "1rem",
-                        background: "linear-gradient(155deg, #173F35 0%, #26231F 100%)",
-                      }}
-                    >
+                    <span className="hi-project-media">
                       {project.images[0] && (
                         <Image
                           src={project.images[0]}
@@ -173,33 +164,9 @@ export default async function WorkIndexPage() {
                           style={{ objectFit: "cover" }}
                         />
                       )}
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 14,
-                          left: 14,
-                          fontFamily: "var(--font-inter)",
-                          fontSize: "0.62rem",
-                          letterSpacing: "0.2em",
-                          textTransform: "uppercase",
-                          color: "var(--hi-on-dark)",
-                          background: "rgba(20,16,12,0.55)",
-                          padding: "0.35rem 0.7rem",
-                        }}
-                      >
-                        {project.category}
-                      </span>
                     </span>
-                    <span
-                      style={{
-                        display: "block",
-                        fontFamily: "var(--font-playfair)",
-                        fontSize: "1.2rem",
-                        color: "var(--hi-ink)",
-                      }}
-                    >
-                      {project.title}
-                    </span>
+                    <span className="hi-project-title">{project.title}</span>
+                    <span className="hi-project-category">{project.category}</span>
                   </Link>
                 </li>
               ))}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Reveal from "./Reveal";
+import CategoryFilter from "./CategoryFilter";
 import type { PortfolioProject } from "@/lib/types";
 
 type Filter = "All" | "Residential" | "Commercial";
@@ -69,38 +70,12 @@ export default function PortfolioSection({
           </div>
         </Reveal>
 
-        <div
-          role="group"
-          aria-label="Filter projects by category"
-          style={{ display: "flex", gap: "0.75rem", margin: "1.5rem 0 3rem", flexWrap: "wrap" }}
-        >
-          {FILTERS.map((f) => {
-            const selected = filter === f;
-            return (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setFilter(f)}
-                className="hi-focusable"
-                style={{
-                  background: selected ? "var(--hi-ink)" : "transparent",
-                  color: selected ? "var(--hi-on-dark)" : "var(--hi-ink-muted)",
-                  border: "1px solid var(--hi-rule-strong)",
-                  padding: "0.6rem 1.4rem",
-                  minHeight: 44,
-                  fontFamily: "var(--font-inter)",
-                  fontSize: "0.7rem",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  transition: "background 0.3s ease, color 0.3s ease, border-color 0.3s ease",
-                }}
-              >
-                {f}
-              </button>
-            );
-          })}
-        </div>
+        <CategoryFilter
+          options={FILTERS}
+          value={filter}
+          onChange={setFilter}
+          label="Filter projects by category"
+        />
 
         {visible.length === 0 ? (
           <p style={{ color: "var(--hi-ink-soft)", fontFamily: "var(--font-inter)" }}>
@@ -116,16 +91,7 @@ export default function PortfolioSection({
                     className="hi-project-card hi-focusable"
                     aria-label={`${project.title} — ${project.category}`}
                   >
-                    <span
-                      style={{
-                        position: "relative",
-                        display: "block",
-                        aspectRatio: "4 / 5",
-                        marginBottom: "1rem",
-                        overflow: "hidden",
-                        background: "linear-gradient(155deg, #173F35 0%, #26231F 100%)",
-                      }}
-                    >
+                    <span className="hi-project-media">
                       {project.images[0] && (
                         <Image
                           src={project.images[0]}
@@ -138,41 +104,9 @@ export default function PortfolioSection({
                           style={{ objectFit: "cover" }}
                         />
                       )}
-                      <span
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          background:
-                            "linear-gradient(to top, rgba(20,16,12,0.55), transparent 55%)",
-                        }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: 14,
-                          left: 14,
-                          fontFamily: "var(--font-inter)",
-                          fontSize: "0.62rem",
-                          letterSpacing: "0.2em",
-                          textTransform: "uppercase",
-                          color: "var(--hi-on-dark)",
-                          background: "rgba(20,16,12,0.5)",
-                          padding: "0.35rem 0.7rem",
-                        }}
-                      >
-                        {project.category}
-                      </span>
                     </span>
-                    <h3
-                      style={{
-                        fontFamily: "var(--font-playfair)",
-                        fontSize: "1.2rem",
-                        fontWeight: 400,
-                        color: "var(--hi-ink)",
-                      }}
-                    >
-                      {project.title}
-                    </h3>
+                    <h3 className="hi-project-title">{project.title}</h3>
+                    <span className="hi-project-category">{project.category}</span>
                   </Link>
                 </Reveal>
               </li>

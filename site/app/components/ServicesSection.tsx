@@ -12,7 +12,7 @@ import type { Service } from "@/lib/types";
  *
  * Now: a rule-separated list. The index sits in the margin as a quiet ordinal
  * rather than a decorated badge, the service name carries the display face at
- * a size that can hold the column, and the row itself is the hover target.
+ * a size that can hold the column.
  * Where a service has an image it becomes a third column; where it doesn't,
  * the row simply doesn't reserve dead space for one.
  */
@@ -142,13 +142,11 @@ export default function ServicesSection({
           align-items: start;
           padding: clamp(1.75rem, 4vh, 2.75rem) 0;
           border-bottom: 1px solid var(--hi-rule);
-          transition: background var(--hi-dur) var(--hi-ease);
         }
 
-        /* The whole row lifts, not a card — there is no card. */
-        .hi-service-row:hover {
-          background: rgba(255, 255, 255, 0.45);
-        }
+        /* Deliberately no hover. This row used to wash lighter under the
+           pointer, which is how a list says "click me" — and a service row
+           has nowhere to go, so it invited a click that did nothing. */
 
         .hi-service-index {
           font-family: var(--font-inter), system-ui, sans-serif;

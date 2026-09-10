@@ -147,6 +147,63 @@ textarea::placeholder {
   opacity: 1; /* Firefox dims placeholders by default; undo it. */
 }
 
+/* --------------------------------------------------------------------------
+   Category filter
+   -------------------------------------------------------------------------- */
+
+.hi-filter {
+  position: relative;
+  display: flex;
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  margin: 1.75rem 0 3rem;
+  flex-wrap: wrap;
+  /* The hairline the labels sit on, and the track the active rule slides
+     along. Same weight as every other rule on the page. */
+  border-bottom: 1px solid var(--hi-rule);
+}
+
+.hi-filter-option {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0 0 0.85rem;
+  /* 44px of target without 44px of visible chrome: the padding above sits
+     inside the row, and this reaches down over the rule. */
+  min-height: 44px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--hi-ink-soft);
+  cursor: pointer;
+  transition: color var(--hi-dur) var(--hi-ease);
+}
+
+.hi-filter-option:hover {
+  color: var(--hi-ink);
+}
+
+.hi-filter-option.is-active {
+  color: var(--hi-ink);
+}
+
+/* Slides between the labels. 1px wide and scaled, so the animation is a
+   transform and nothing else — a width transition here would lay out the row
+   on every frame. */
+.hi-filter-rule {
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 1px;
+  height: 1px;
+  background: var(--hi-accent-strong);
+  transform-origin: left;
+  transition:
+    transform 0.45s var(--hi-ease),
+    opacity 0.2s linear;
+  pointer-events: none;
+}
+
 /* Skip link — the first tab stop on the page, so a keyboard user can get past
    the 500vh hero without scrubbing through it. */
 .hi-skip-link {
@@ -254,20 +311,82 @@ textarea::placeholder {
    Portfolio cards
    -------------------------------------------------------------------------- */
 
+/* The photograph.
+   No gradient scrim any more: one used to darken the bottom 45% of every
+   image, left over from when the title sat on top of it. The title moved
+   below, the scrim did not, and it was muddying the photography for nothing —
+   which on a site selling interiors is the one thing worth not doing. */
+.hi-project-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  /* Visible for the moment before the image decodes, in the brand colours
+     rather than as a grey hole. */
+  background: linear-gradient(155deg, #173f35 0%, #26231f 100%);
+}
+
+/* Slower than an interaction, faster than a reveal. The image is the largest
+   thing on the card and needs the extra time to feel unhurried rather than
+   nudged. */
 .hi-project-image {
-  transition: transform 0.7s var(--hi-ease);
+  transition: transform 0.9s var(--hi-ease);
 }
 
 .hi-project-card:hover .hi-project-image,
 .hi-project-card:focus-visible .hi-project-image {
-  transform: scale(1.04);
+  transform: scale(1.035);
 }
 
-.hi-project-card h3 {
+.hi-project-title {
+  position: relative;
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: var(--font-playfair), Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: var(--hi-ink);
+}
+
+/* A rule that draws in under the title, rather than an underline that blinks
+   on. Scaled from the left on a 1px element, so it is a transform and nothing
+   more. */
+.hi-project-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1px;
+  background: var(--hi-accent-strong);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.45s var(--hi-ease);
+}
+
+.hi-project-card:hover .hi-project-title::after,
+.hi-project-card:focus-visible .hi-project-title::after {
+  transform: scaleX(1);
+}
+
+/* The category, as a line of type under the title instead of a dark chip
+   pinned to the corner of the photograph.
+   Named -category, not -meta: .hi-project-meta was already the project page's
+   specification list, and reusing it gave every card that list's grid, its
+   40px indent and its left border. */
+.hi-project-category {
+  display: block;
+  margin-top: 0.55rem;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hi-ink-soft);
   transition: color var(--hi-dur) var(--hi-ease);
 }
 
-.hi-project-card:hover h3 {
+.hi-project-card:hover .hi-project-category,
+.hi-project-card:focus-visible .hi-project-category {
   color: var(--hi-accent-text);
 }
 
@@ -306,6 +425,137 @@ textarea::placeholder {
    Site header (app/components/SiteHeader.tsx)
    -------------------------------------------------------------------------- */
 
+/* The bar's frosted ground: tint, blur and hairline together on one layer,
+   faded by opacity. Behind the header's content because the header is a
+   stacking context and this is its only positioned child with a z-index. */
+.hi-header-ground {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(244, 241, 234, 0.92);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  backdrop-filter: saturate(140%) blur(12px);
+  box-shadow: 0 1px 0 var(--hi-rule);
+  opacity: 0;
+  transition: opacity 0.4s var(--hi-ease);
+  pointer-events: none;
+}
+
+.hi-header[data-solid="true"] .hi-header-ground {
+  opacity: 1;
+}
+
+/* A rule under a text link that draws in from the left on hover and retracts
+   to the right on the way out, so running the pointer along a row of links
+   reads as one line travelling rather than several blinking on and off.
+
+   currentColor keeps the rule the colour of its label, so the same class
+   works on the transparent header, the solid header and the dark footer
+   without restating any of their palettes. */
+.hi-underline {
+  position: relative;
+  text-decoration: none;
+}
+
+.hi-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform var(--hi-dur) var(--hi-ease);
+  pointer-events: none;
+}
+
+.hi-underline:hover::after,
+.hi-underline:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.hi-nav-link {
+  padding-bottom: 4px;
+  transition: color var(--hi-dur) var(--hi-ease);
+}
+
+/* The section in view keeps its rule, in the accent, as it did before. */
+.hi-nav-link[aria-current="true"]::after {
+  transform: scaleX(1);
+  background: var(--hi-accent);
+}
+
+/* The header's one button: a translucent outline while the bar sits over
+   footage, the accent fill once it turns solid. Hover is one step stronger in
+   each. In the solid state that means darker, never lighter — --hi-accent-lift
+   measures 5.86:1 under the label against the fill's 5.00:1, so the hover
+   gains contrast rather than spending it. */
+.hi-header-cta {
+  color: var(--hi-on-dark);
+  background: rgba(248, 242, 232, 0.14);
+  border: 1px solid rgba(248, 242, 232, 0.34);
+  transition:
+    background var(--hi-dur) var(--hi-ease),
+    border-color var(--hi-dur) var(--hi-ease);
+}
+
+.hi-header-cta:hover {
+  background: rgba(248, 242, 232, 0.22);
+  border-color: rgba(248, 242, 232, 0.6);
+}
+
+/* --hi-accent measures 2.86:1 against --hi-on-dark; text-bearing fills take
+   --hi-accent-strong. See the token note at the top of this file. */
+.hi-header[data-solid="true"] .hi-header-cta {
+  background: var(--hi-accent-strong);
+  border-color: var(--hi-accent-strong);
+}
+
+.hi-header[data-solid="true"] .hi-header-cta:hover {
+  background: var(--hi-accent-lift);
+  border-color: var(--hi-accent-lift);
+}
+
+/* Floating contact pucks. The lift only applies with a real pointer: on a
+   touchscreen a hover state sticks after the tap and leaves the button
+   raised until the next touch somewhere else. */
+@media (hover: hover) {
+  .hi-puck:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.hi-puck:active {
+  transform: translateY(0);
+}
+
+/* Footer links and the newsletter button. Their colours moved here from
+   inline styles for the same reason as the header button. */
+.hi-footer-link {
+  padding-bottom: 2px;
+  color: rgba(244, 241, 234, 0.75);
+  transition: color var(--hi-dur) var(--hi-ease);
+}
+
+.hi-footer-link:hover {
+  color: var(--hi-on-dark);
+}
+
+/* --hi-accent is decoration-only (2.87:1 under this text). */
+.hi-footer-join {
+  background: var(--hi-accent-strong);
+  color: var(--hi-on-dark);
+  border: none;
+  transition: background var(--hi-dur) var(--hi-ease);
+}
+
+.hi-footer-join:hover {
+  background: var(--hi-accent-lift);
+}
+
 @media (max-width: 880px) {
   .hi-header-nav,
   .hi-header-cta {
@@ -320,6 +570,17 @@ textarea::placeholder {
 /* --------------------------------------------------------------------------
    Project pages (/work, /work/[slug])
    -------------------------------------------------------------------------- */
+
+/* Breadcrumb links. They inherit the trail's soft ink and darken on hover;
+   inline-styled, they had no hover state before. */
+.hi-crumb-link {
+  text-decoration: none;
+  transition: color var(--hi-dur-fast) var(--hi-ease);
+}
+
+.hi-crumb-link:hover {
+  color: var(--hi-ink);
+}
 
 .hi-project-grid {
   list-style: none;
