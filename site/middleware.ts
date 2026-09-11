@@ -2,6 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 import { requiresCsrf, verifyCsrf } from "@/lib/csrf";
 
+/** The ways in: signing in, asking for a reset link, and using one. */
+const PUBLIC_ADMIN_PAGES = new Set([
+  "/admin/login",
+  "/admin/forgot-password",
+  "/admin/reset-password",
+]);
+
+const AUTH_ENDPOINTS = new Set([
+  "/api/admin/login",
+  "/api/admin/logout",
+  "/api/admin/password-reset/request",
+  "/api/admin/password-reset/complete",
+]);
+
 /**
  * Edge middleware: security headers on every response, plus two guards on the
  * admin surface.
@@ -107,11 +121,11 @@ export function middleware(req: NextRequest) {
   requestHeaders.set("Content-Security-Policy", cspFor(nonce));
 
   const isAdminApi = pathname.startsWith("/api/admin");
-  const isAdminPage = pathname.startsWith("/admin") && pathname !== "/admin/login";
+  const isAdminPage = pathname.startsWith("/admin") && !PUBLIC_ADMIN_PAGES.has(pathname);
 
-  // The login and logout endpoints are the way *in* and *out*; they cannot
-  // require an existing session or a token minted behind one.
-  const isAuthEndpoint = pathname === "/api/admin/login" || pathname === "/api/admin/logout";
+  // Login, logout, and the two halves of a password reset are the way *in* and
+  // *out*; they cannot require an existing session or a token minted behind one.
+  const isAuthEndpoint = AUTH_ENDPOINTS.has(pathname);
 
   if ((isAdminApi || isAdminPage) && !isAuthEndpoint) {
     const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);

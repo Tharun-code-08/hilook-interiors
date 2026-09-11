@@ -14,13 +14,20 @@ import {
   TextField,
 } from "../../components/ui";
 
-type AdminUserView = { id: string; username: string; role: "owner" | "editor"; createdAt: string };
+type AdminUserView = {
+  id: string;
+  username: string;
+  email: string | null;
+  role: "owner" | "editor";
+  createdAt: string;
+};
 
 export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
   const [users, setUsers] = useState<AdminUserView[]>(initial);
   const [form, setForm] = useState({
     username: "",
     password: "",
+    email: "",
     role: "editor" as "owner" | "editor",
   });
   const [error, setError] = useState("");
@@ -41,7 +48,7 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
     // the form — a null result means it was rejected and already reported.
     const created = await mutate<{ username: string }>(
       "/api/admin/users",
-      { method: "POST", ...jsonBody(form) },
+      { method: "POST", ...jsonBody({ ...form, email: form.email.trim() }) },
       { successMessage: `Account “${form.username.trim()}” created.` }
     );
     if (!created) {
@@ -49,7 +56,7 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
       return;
     }
 
-    setForm({ username: "", password: "", role: "editor" });
+    setForm({ username: "", password: "", email: "", role: "editor" });
     load();
   }
 
@@ -105,16 +112,24 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
               label="Password"
               type="password"
               autoComplete="new-password"
-              hint="At least 8 characters."
+              hint="At least 12 characters."
               error={error || undefined}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              autoComplete="off"
+              hint="Optional. Password reset links for this account are sent here."
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
             />
             <div className="ad-row">
               <Button
                 type="submit"
                 variant="primary"
-                disabled={!form.username.trim() || form.password.length < 8}
+                disabled={!form.username.trim() || form.password.length < 12}
               >
                 Create account
               </Button>
@@ -131,6 +146,7 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
                 <thead>
                   <tr>
                     <th scope="col">Username</th>
+                    <th scope="col">Email</th>
                     <th scope="col">Role</th>
                     <th scope="col">Created</th>
                     <th scope="col">
@@ -142,6 +158,7 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
                   {users.map((u) => (
                     <tr key={u.id}>
                       <td className="ad-td-strong">{u.username}</td>
+                      <td>{u.email ?? <span className="ad-muted">—</span>}</td>
                       <td>
                         <Badge tone={u.role === "owner" ? "info" : "neutral"}>{u.role}</Badge>
                       </td>

@@ -14,7 +14,15 @@ import * as t from "./schema";
  * both be allowed through.
  */
 
-export type Bucket = "login" | "contact" | "newsletter" | "analytics" | "password-change";
+export type Bucket =
+  | "login"
+  | "contact"
+  | "newsletter"
+  | "analytics"
+  | "password-change"
+  | "password-reset"
+  | "password-reset-account"
+  | "password-reset-complete";
 
 type Policy = { limit: number; windowMs: number };
 
@@ -31,6 +39,14 @@ const POLICIES: Record<Bucket, Policy> = {
   // reloads. Generous for a person, still caps what an attacker can insert.
   analytics: { limit: 60, windowMs: HOUR },
   "password-change": { limit: 10, windowMs: HOUR },
+  // Every reset request can send an email. Limited per address and, separately,
+  // per account name, so neither one visitor nor a spread of addresses can flood
+  // an inbox. The account ceiling is the higher one: a stranger can spend it,
+  // and the owner should still have room to ask.
+  "password-reset": { limit: 5, windowMs: HOUR },
+  "password-reset-account": { limit: 10, windowMs: HOUR },
+  // Guessing a 256-bit token is not a real risk; this only caps the noise.
+  "password-reset-complete": { limit: 20, windowMs: HOUR },
 };
 
 /**

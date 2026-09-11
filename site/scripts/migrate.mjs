@@ -83,6 +83,7 @@ try {
   await migrate(db, { migrationsFolder: join(root, "drizzle") });
   console.log("[migrate] schema up to date");
   await seedOwner();
+  await backfillOwnerEmail();
 } catch (error) {
   console.error("[migrate] failed:", error.message);
   process.exit(1);
@@ -109,9 +110,9 @@ async function seedOwner() {
   const password = generated ? randomBytes(18).toString("base64url") : fromEnv;
 
   await client.execute({
-    sql: `INSERT INTO users (id, username, password_hash, role, must_change_password, created_at)
-          VALUES (?, ?, ?, 'owner', 1, ?)`,
-    args: ["user-1", "admin", bcrypt.hashSync(password, 12), Date.now()],
+    sql: `INSERT INTO users (id, username, email, password_hash, role, must_change_password, created_at)
+          VALUES (?, ?, ?, ?, 'owner', 1, ?)`,
+    args: ["user-1", "admin", adminEmail(), bcrypt.hashSync(password, 12), Date.now()],
   });
 
   console.log("");
@@ -125,4 +126,38 @@ async function seedOwner() {
   }
   console.log("[migrate] You must change it at first sign-in.");
   console.log("");
+}
+
+/** ADMIN_EMAIL, if it is set and looks like an address. */
+function adminEmail() {
+  const value = process.env.ADMIN_EMAIL?.trim();
+  if (!value) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    console.warn("[migrate] ADMIN_EMAIL does not look like an email address; ignoring it.");
+    return null;
+  }
+  return value;
+}
+
+/**
+ * Gives an existing owner account a recovery email from ADMIN_EMAIL.
+ *
+ * Only an owner that has none, and only an address no other account uses. It
+ * never replaces an address set from the panel, so this variable is not a way
+ * to redirect where an account's reset links go.
+ */
+async function backfillOwnerEmail() {
+  const email = adminEmail();
+  if (!email) return;
+
+  const result = await client.execute({
+    sql: `UPDATE users SET email = ?
+          WHERE id = (SELECT id FROM users WHERE role = 'owner' AND email IS NULL ORDER BY created_at LIMIT 1)
+            AND NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = lower(?))`,
+    args: [email, email],
+  });
+
+  if (result.rowsAffected > 0) {
+    console.log("[migrate] Set the owner account's recovery email from ADMIN_EMAIL.");
+  }
 }

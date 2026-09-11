@@ -287,6 +287,7 @@ function toUser(r: typeof t.users.$inferSelect): AdminUser {
   return {
     id: r.id,
     username: r.username,
+    email: r.email ?? null,
     passwordHash: r.passwordHash,
     role: r.role,
     mustChangePassword: r.mustChangePassword,
@@ -322,7 +323,10 @@ export async function createUser(input: {
   username: string;
   password: string;
   role: "owner" | "editor";
-}): Promise<{ ok: true; user: PublicAdminUser } | { ok: false; reason: "duplicate" }> {
+  email?: string | null;
+}): Promise<
+  { ok: true; user: PublicAdminUser } | { ok: false; reason: "duplicate" | "duplicate-email" }
+> {
   const db = getDb();
   const id = nanoid();
 
@@ -332,13 +336,19 @@ export async function createUser(input: {
       username: input.username,
       passwordHash: bcrypt.hashSync(input.password, BCRYPT_ROUNDS),
       role: input.role,
+      email: input.email || null,
       mustChangePassword: true,
     });
   } catch (error) {
     // The case-insensitive unique index is the authority on duplicates, not a
     // prior SELECT — checking first leaves a window where two concurrent
     // creates both pass the check.
-    if (isUniqueViolation(error)) return { ok: false, reason: "duplicate" };
+    if (isUniqueViolation(error)) {
+      return {
+        ok: false,
+        reason: mentionsIndex(error, "users_email_idx") ? "duplicate-email" : "duplicate",
+      };
+    }
     throw error;
   }
 
@@ -360,6 +370,47 @@ export async function setPassword(id: string, password: string): Promise<void> {
 
 export async function recordLogin(id: string): Promise<void> {
   await getDb().update(t.users).set({ lastLoginAt: Date.now() }).where(eq(t.users.id, id));
+}
+
+/**
+ * The account a "Forgot password?" request names — by username or by email,
+ * both compared without case. Usernames cannot contain "@", so the two never
+ * collide.
+ */
+export async function findUserByIdentifier(identifier: string): Promise<AdminUser | null> {
+  const value = identifier.trim().toLowerCase();
+  if (!value) return null;
+  const [row] = await getDb()
+    .select()
+    .from(t.users)
+    .where(sql`lower(${t.users.username}) = ${value} OR lower(${t.users.email}) = ${value}`)
+    .limit(1);
+  return row ? toUser(row) : null;
+}
+
+/** Sets or clears an account's recovery email. The unique index decides duplicates. */
+export async function setUserEmail(
+  id: string,
+  email: string | null
+): Promise<{ ok: true } | { ok: false; reason: "duplicate" }> {
+  try {
+    await getDb().update(t.users).set({ email }).where(eq(t.users.id, id));
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, reason: "duplicate" };
+    throw error;
+  }
+  return { ok: true };
+}
+
+/** Whether a constraint error names a particular index, anywhere in its cause chain. */
+function mentionsIndex(error: unknown, index: string): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 5; depth++) {
+    const message = (current as { message?: unknown }).message;
+    if (typeof message === "string" && message.includes(index)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 export async function countOwners(excludeId?: string): Promise<number> {

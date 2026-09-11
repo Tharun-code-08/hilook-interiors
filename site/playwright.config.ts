@@ -53,6 +53,13 @@ export default defineConfig({
           // The limiter itself is covered by the integration tests.
           RATE_LIMIT_CONTACT: "200",
           RATE_LIMIT_NEWSLETTER: "200",
+          RATE_LIMIT_PASSWORD_RESET: "200",
+          RATE_LIMIT_PASSWORD_RESET_ACCOUNT: "200",
+          // Reset emails are written to data/outbox/ instead of being sent; the
+          // password reset test follows the link from there.
+          EMAIL_TRANSPORT: "file",
+          EMAIL_FROM: "Hilook Interiors <support@claxonai.in>",
+          ADMIN_EMAIL: "owner@e2e.example",
           // Its own build directory. A running `next dev` owns .next, and a
           // build into the same place leaves the two clobbering each other —
           // the symptom is a server that starts fine and then serves a

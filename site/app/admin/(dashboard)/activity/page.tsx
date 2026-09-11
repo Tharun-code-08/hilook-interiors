@@ -17,6 +17,9 @@ const ACTION_LABEL: Record<string, string> = {
   "login.failed": "failed sign-in",
   logout: "signed out",
   "password.change": "changed password",
+  "password.reset.request": "requested a password reset",
+  "password.reset": "reset password by email",
+  "email.change": "changed recovery email",
   "session.revoke": "revoked a session",
   create: "created",
   update: "updated",
@@ -27,7 +30,14 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 /** Entries worth a second look rather than a scroll past. */
-const NOTABLE = new Set(["login.failed", "password.change", "session.revoke", "delete"]);
+const NOTABLE = new Set([
+  "login.failed",
+  "password.change",
+  "password.reset",
+  "email.change",
+  "session.revoke",
+  "delete",
+]);
 
 export default async function AdminActivityPage() {
   // Before any query: the layout's check does not cover this page's data.

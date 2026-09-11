@@ -3,6 +3,7 @@ import { countOwners, deleteUser, findUserById } from "@/lib/repos/operations";
 import { notFound, requireSession } from "@/lib/api";
 import { tryRecordAudit } from "@/lib/audit";
 import { revokeAllForUser } from "@/lib/repos/sessions";
+import { clearResetTokens } from "@/lib/repos/password-resets";
 import { clientIp } from "@/lib/request";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +31,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   await deleteUser(id);
+  await clearResetTokens(id);
 
   // The account is gone, but its tokens are not: they verify on signature and
   // would keep working until they expired. The dashboard layout happens to

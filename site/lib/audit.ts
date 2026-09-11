@@ -13,7 +13,10 @@ export type AuditAction =
   | "reorder"
   | "upload"
   | "export"
-  | "session.revoke";
+  | "session.revoke"
+  | "password.reset.request"
+  | "password.reset"
+  | "email.change";
 
 /**
  * Audit writes must never fail the operation they describe — a database

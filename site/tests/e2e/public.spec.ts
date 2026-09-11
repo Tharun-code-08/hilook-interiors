@@ -298,7 +298,17 @@ test.describe("project routes", () => {
  * page that was static until it was made otherwise.
  */
 test.describe("content security policy", () => {
-  const ROUTES = ["/", "/work", "/admin/login", "/work/no-such-project", "/no-such-page"];
+  const ROUTES = [
+    "/",
+    "/work",
+    "/admin/login",
+    // The password reset pages are ways into the panel that need no session,
+    // so they get the same check as the sign-in page.
+    "/admin/forgot-password",
+    "/admin/reset-password?token=not-a-real-token",
+    "/work/no-such-project",
+    "/no-such-page",
+  ];
 
   for (const path of ROUTES) {
     test(`${path} loads with no CSP violations`, async ({ page }) => {
@@ -380,6 +390,25 @@ test.describe("accessibility", () => {
     // deterministic — this is what catches the gold-on-cream problem.
     const results = await new AxeBuilder({ page }).include("#contact").analyze();
 
+    expect(
+      results.violations,
+      results.violations.map((v) => `${v.id}: ${v.help}`).join("\n")
+    ).toEqual([]);
+  });
+
+  test("forgot password page has no violations", async ({ page }) => {
+    await page.goto("/admin/forgot-password");
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(
+      results.violations,
+      results.violations.map((v) => `${v.id}: ${v.help}`).join("\n")
+    ).toEqual([]);
+  });
+
+  test("an expired reset link page has no violations", async ({ page }) => {
+    await page.goto("/admin/reset-password?token=not-a-real-token");
+    await expect(page.getByRole("heading", { name: /link has expired/i })).toBeVisible();
+    const results = await new AxeBuilder({ page }).analyze();
     expect(
       results.violations,
       results.violations.map((v) => `${v.id}: ${v.help}`).join("\n")

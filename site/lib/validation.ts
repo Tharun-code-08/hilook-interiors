@@ -263,6 +263,7 @@ export const userCreateSchema = z.object({
     .regex(/^[a-zA-Z0-9._-]+$/, "Letters, numbers, dot, dash, and underscore only"),
   password: passwordSchema,
   role: z.enum(["owner", "editor"]).default("editor"),
+  email: z.union([email, z.literal("")]).optional(),
 });
 
 export const passwordChangeSchema = z
@@ -274,6 +275,24 @@ export const passwordChangeSchema = z
     message: "New password must be different from the current one",
     path: ["newPassword"],
   });
+
+/** "Forgot password?" — a username or an email address; the route looks for either. */
+export const passwordResetRequestSchema = z.object({
+  identifier: z.string().trim().min(1, "Enter your username or email address").max(254),
+});
+
+export const passwordResetCompleteSchema = z.object({
+  // A token is 32 random bytes as base64url, 43 characters. Anything far off
+  // that is not a link we sent.
+  token: z.string().min(20, "This reset link is incomplete").max(200),
+  newPassword: passwordSchema,
+});
+
+/** An empty email removes the account's recovery address. */
+export const accountEmailSchema = z.object({
+  currentPassword: z.string().min(1, "Enter your current password").max(200),
+  email: z.union([email, z.literal("")]),
+});
 
 /* -------------------------------------------------------------------------
  * Helper

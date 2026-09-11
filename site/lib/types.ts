@@ -69,6 +69,7 @@ export type MediaItem = {
 export type AdminUser = {
   id: string;
   username: string;
+  email: string | null;
   passwordHash: string;
   role: "owner" | "editor";
   createdAt: string;

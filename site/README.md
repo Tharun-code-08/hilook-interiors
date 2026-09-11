@@ -60,12 +60,14 @@ concurrent admin saves safe.
 
 The app writes nothing to the filesystem at runtime once these are set:
 
-| Variable                                  | Why                                                                                                                     |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`                          | Without it the app would write a generated secret to disk. Required in production — it throws rather than falling back. |
-| `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` | Otherwise the database is a local file.                                                                                 |
-| `BLOB_READ_WRITE_TOKEN`                   | Otherwise uploads go to `.storage/` on local disk. Needs `npm install @vercel/blob`.                                    |
-| `NEXT_PUBLIC_SITE_URL`                    | Absolute URLs for canonicals, sitemap, and Open Graph.                                                                  |
+| Variable                                                             | Why                                                                                                                                                     |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`                                                     | Without it the app would write a generated secret to disk. Required in production — it throws rather than falling back.                                 |
+| `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`                            | Otherwise the database is a local file.                                                                                                                 |
+| `BLOB_READ_WRITE_TOKEN`                                              | Otherwise uploads go to `.storage/` on local disk. Needs `npm install @vercel/blob`.                                                                    |
+| `NEXT_PUBLIC_SITE_URL`                                               | Absolute URLs for canonicals, sitemap, and Open Graph.                                                                                                  |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | Sends password reset links from your own mailbox, e.g. `EMAIL_FROM="Hilook Interiors <support@claxonai.in>"`. Unset, "Forgot password?" is not offered. |
+| `ADMIN_EMAIL`                                                        | Recovery email for the owner account: used when it is created, or on a later deploy for an owner with none. Never replaces one set in the panel.        |
 
 `npm run db:migrate` has to run before the app starts. On Vercel that is
 already wired up: the `vercel-build` script runs migrations and then the build,

@@ -1,3 +1,4 @@
+import { emailConfigured } from "@/lib/email";
 import LoginForm from "./LoginForm";
 
 /**
@@ -20,6 +21,22 @@ import LoginForm from "./LoginForm";
  */
 export const dynamic = "force-dynamic";
 
-export default function AdminLoginPage() {
-  return <LoginForm />;
+/**
+ * `next` (where to go after signing in) and `reset` (arriving from a completed
+ * password reset) are read here, on the server, and handed to the form — see
+ * LoginForm for why the form must not read them itself.
+ */
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  return (
+    <LoginForm
+      next={typeof params.next === "string" ? params.next : null}
+      notice={params.reset === "1" ? "Password updated. Sign in with your new password." : null}
+      canReset={emailConfigured()}
+    />
+  );
 }

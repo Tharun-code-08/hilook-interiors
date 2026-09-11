@@ -195,6 +195,8 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     username: text("username").notNull(),
+    /** Where password reset links go. Optional; unique when set. */
+    email: text("email"),
     passwordHash: text("password_hash").notNull(),
     role: text("role", { enum: ["owner", "editor"] })
       .notNull()
@@ -207,8 +209,38 @@ export const users = sqliteTable(
     createdAt: integer("created_at").notNull().default(now),
   },
   // Usernames are compared case-insensitively at login, so uniqueness has to
-  // be enforced the same way or "Admin" and "admin" become two accounts.
-  (t) => [uniqueIndex("users_username_idx").on(sql`lower(${t.username})`)]
+  // be enforced the same way or "Admin" and "admin" become two accounts. The
+  // recovery email the same: reset links go to it, so an address can be the
+  // way back into exactly one account.
+  (t) => [
+    uniqueIndex("users_username_idx").on(sql`lower(${t.username})`),
+    uniqueIndex("users_email_idx").on(sql`lower(${t.email})`),
+  ]
+);
+
+/**
+ * One-time password reset links (lib/repos/password-resets.ts).
+ *
+ * token_hash is a SHA-256 of the token in the emailed link. The token itself
+ * is never stored, so a copy of this table is not a set of working links.
+ */
+export const passwordResetTokens = sqliteTable(
+  "password_reset_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    usedAt: integer("used_at"),
+    createdAt: integer("created_at").notNull().default(now),
+    requestedIp: text("requested_ip"),
+  },
+  (t) => [
+    uniqueIndex("password_reset_tokens_hash_idx").on(t.tokenHash),
+    index("password_reset_tokens_user_idx").on(t.userId),
+  ]
 );
 
 /**

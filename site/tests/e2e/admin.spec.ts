@@ -1,5 +1,7 @@
 import { test, expect, request, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 /**
  * Admin flows.
@@ -692,6 +694,86 @@ test.describe("session revocation", () => {
 
     await expect(page.getByRole("heading", { name: "Signed-in devices" })).toBeVisible();
     await expect(page.getByText("This device")).toBeVisible();
+  });
+});
+
+/**
+ * Password reset by email.
+ *
+ * The e2e server runs with EMAIL_TRANSPORT=file, so a sent message is a JSON
+ * file in data/outbox/, and the test follows the link a real inbox would get.
+ */
+test.describe("password reset by email", () => {
+  const OUTBOX = path.join(process.cwd(), "data", "outbox");
+
+  function emailsSince(since: number): { to: string; subject: string; text: string }[] {
+    let names: string[] = [];
+    try {
+      names = readdirSync(OUTBOX);
+    } catch {
+      return [];
+    }
+    return names
+      .filter((name) => Number(name.split("-")[0]) >= since)
+      .sort()
+      .map((name) => JSON.parse(readFileSync(path.join(OUTBOX, name), "utf8")));
+  }
+
+  test("a link from the sign-in page sets a new password, and works once", async ({ page }) => {
+    const since = Date.now();
+
+    await page.goto("/admin/login");
+    await page.getByRole("link", { name: /forgot password/i }).click();
+    await expect(page).toHaveURL(/\/admin\/forgot-password/);
+
+    await page.getByLabel("Username or email").fill(USERNAME);
+    await page.getByRole("button", { name: /send reset link/i }).click();
+    await expect(page.getByText(/reset link is on its way/i)).toBeVisible();
+
+    // The email goes out after the response, so it can land a moment later.
+    let emails = emailsSince(since);
+    for (let i = 0; i < 40 && emails.length === 0; i++) {
+      await page.waitForTimeout(250);
+      emails = emailsSince(since);
+    }
+    expect(emails, "one reset email should have been written").toHaveLength(1);
+    expect(emails[0].to).toBe("owner@e2e.example");
+
+    const url = emails[0].text.match(/https?:\/\/\S+\/admin\/reset-password\?token=\S+/)?.[0];
+    expect(url, "the email should carry a reset link").toBeTruthy();
+
+    // Path and query only: the link's host is the configured site address,
+    // and the test server is wherever this run started it.
+    const link = new URL(url!);
+    const target = link.pathname + link.search;
+
+    await page.goto(target);
+    await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
+    await page.getByLabel("Confirm new password", { exact: true }).fill(NEW_PASSWORD);
+    await page.getByRole("button", { name: /set new password/i }).click();
+
+    await expect(page).toHaveURL(/\/admin\/login\?reset=1/);
+    await expect(page.getByText(/password updated/i)).toBeVisible();
+
+    // Used once, dead after.
+    await page.goto(target);
+    await expect(page.getByRole("heading", { name: /link has expired/i })).toBeVisible();
+
+    await signIn(page);
+  });
+
+  test("an unknown account gets the same answer, and no email", async ({ request: api }) => {
+    const since = Date.now();
+
+    const res = await api.post("/api/admin/password-reset/request", {
+      data: { identifier: `nobody-${since}` },
+    });
+    expect(res.status()).toBe(200);
+    expect((await res.json()).message).toMatch(/reset link is on its way/i);
+
+    // Long enough for an email that was going to be written to have been.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(emailsSince(since)).toHaveLength(0);
   });
 });
 

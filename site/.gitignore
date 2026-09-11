@@ -42,6 +42,7 @@ data/ui-e2e.db
 data/ui-e2e.db-*
 data/craft-e2e.db
 data/craft-e2e.db-*
+data/outbox/
 playwright-report
 .lighthouseci
 test-results

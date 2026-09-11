@@ -1,25 +1,29 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Button, TextField } from "../components/ui";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Banner, Button, TextField } from "../components/ui";
 
 /**
- * useSearchParams opts the tree into client-side rendering, which Next
- * requires be wrapped in a Suspense boundary or the build fails while
- * prerendering this route.
+ * The sign-in form.
+ *
+ * `next`, `notice` and `canReset` arrive as props from the server page rather
+ * than being read here with useSearchParams. Reading them here required a
+ * Suspense boundary, and with it the server sent the form hidden for a script
+ * to reveal — so in a browser where that script did not run, the sign-in page
+ * was a blank screen.
  */
-export default function LoginForm() {
-  return (
-    <Suspense fallback={null}>
-      <Form />
-    </Suspense>
-  );
-}
-
-function Form() {
+export default function LoginForm({
+  next,
+  notice,
+  canReset,
+}: {
+  next: string | null;
+  notice: string | null;
+  canReset: boolean;
+}) {
   const router = useRouter();
-  const nextParam = useSearchParams().get("next");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -52,11 +56,7 @@ function Form() {
         // Middleware records where an unauthenticated request was headed so
         // the sign-in returns there. Only same-site paths are honoured: an
         // absolute or protocol-relative value would be an open redirect.
-        const requested = nextParam;
-        const safeNext =
-          requested && requested.startsWith("/") && !requested.startsWith("//")
-            ? requested
-            : "/admin";
+        const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
         router.push(safeNext);
       }
       router.refresh();
@@ -71,6 +71,9 @@ function Form() {
     // screen-reader user navigating by region would find nothing here.
     <main className="ad-login">
       <form
+        // If the script never runs, a submit posts rather than putting the
+        // password into the address bar.
+        method="post"
         className="ad-login-card ad-stack"
         aria-labelledby="admin-signin-heading"
         onSubmit={onSubmit}
@@ -81,6 +84,8 @@ function Form() {
           </h1>
           <p className="ad-page-sub">Sign in to the admin panel.</p>
         </div>
+
+        {notice && <Banner tone="info">{notice}</Banner>}
 
         <TextField
           label="Username"
@@ -110,6 +115,13 @@ function Form() {
         <Button type="submit" variant="primary" block disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </Button>
+
+        {/* Only offered when the site can actually send the email. */}
+        {canReset && (
+          <p className="ad-page-sub">
+            <Link href="/admin/forgot-password">Forgot password?</Link>
+          </p>
+        )}
       </form>
     </main>
   );

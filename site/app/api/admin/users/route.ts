@@ -21,9 +21,17 @@ export async function POST(req: NextRequest) {
 
   // Uniqueness is enforced by a case-insensitive index, not a prior SELECT —
   // checking first leaves a window where two concurrent creates both pass.
-  const result = await createUser(guard.data);
+  const result = await createUser({ ...guard.data, email: guard.data.email || null });
   if (!result.ok) {
-    return NextResponse.json({ error: "That username is already taken" }, { status: 409 });
+    return NextResponse.json(
+      {
+        error:
+          result.reason === "duplicate-email"
+            ? "That email address is already used by another account"
+            : "That username is already taken",
+      },
+      { status: 409 }
+    );
   }
 
   await tryRecordAudit({
