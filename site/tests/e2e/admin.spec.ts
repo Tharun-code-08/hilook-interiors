@@ -778,6 +778,51 @@ test.describe("password reset by email", () => {
 });
 
 /**
+ * Dates in the admin lists render the same on the server and in the browser.
+ *
+ * They were formatted with toLocaleString() during render, so a browser whose
+ * locale or timezone differed from the server's produced different text, and
+ * React threw the server-rendered page away (error #418). On Vercel the server
+ * is en-US in UTC and the studio is in India, so the owner hit it on every
+ * visit. The browser here is set far from any server this suite runs on.
+ */
+test.describe("dates in admin lists", () => {
+  test.use({ locale: "de-DE", timezoneId: "Pacific/Kiritimati" });
+
+  test("render without a hydration mismatch in another locale and timezone", async ({
+    page,
+    request: api,
+  }) => {
+    // At least one row in the inbox, so there is a date to render.
+    await api.post("/api/contact", {
+      data: {
+        name: `Hydration Probe ${Date.now()}`,
+        email: "hydration@example.com",
+        phone: "",
+        message: "Gives the inbox a dated row.",
+        website: "http://spam.example",
+      },
+    });
+
+    const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("pageerror", (error) => errors.push(String(error)));
+
+    await signIn(page);
+
+    for (const path of ["/admin/users", "/admin/submissions"]) {
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+    }
+
+    const mismatches = errors.filter((text) => /#418|#423|hydrat/i.test(text));
+    expect(mismatches, mismatches.join("\n")).toEqual([]);
+  });
+});
+
+/**
  * Autosave in the edit-in-place lists.
  *
  * These lists used to fire a PUT from onChange, so typing a description was

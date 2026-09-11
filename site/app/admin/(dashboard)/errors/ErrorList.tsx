@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge, Button, EmptyState } from "../../components/ui";
+import LocalTime from "../../components/LocalTime";
 import { useMutation } from "../components/useMutation";
 
 export type ErrorView = {
@@ -64,9 +65,7 @@ export default function ErrorList({ initial }: { initial: ErrorView[] }) {
               </span>
             )}
             <div className="ad-spacer" />
-            <time className="ad-muted" dateTime={row.lastSeenAt}>
-              {new Date(row.lastSeenAt).toLocaleString()}
-            </time>
+            <LocalTime className="ad-muted" iso={row.lastSeenAt} />
           </div>
 
           <p className="ad-error-message">{row.message}</p>

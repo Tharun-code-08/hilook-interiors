@@ -5,6 +5,7 @@ import type { Submission } from "@/lib/types";
 import { useConfirm } from "../components/ConfirmDialog";
 import { jsonBody, useMutation } from "../components/useMutation";
 import { Badge, Button, Card, EmptyState, PageHeader } from "../../components/ui";
+import LocalTime from "../../components/LocalTime";
 
 type Tab = "inbox" | "filtered";
 
@@ -215,9 +216,7 @@ export default function SubmissionsAdmin({
                         {s.responded && <Badge tone="success">Responded</Badge>}
                       </>
                     )}
-                    <time className="ad-muted" dateTime={new Date(s.createdAt).toISOString()}>
-                      {new Date(s.createdAt).toLocaleString()}
-                    </time>
+                    <LocalTime className="ad-muted" iso={s.createdAt} />
                   </div>
                 </div>
 

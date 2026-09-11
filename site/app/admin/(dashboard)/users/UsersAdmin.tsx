@@ -13,6 +13,7 @@ import {
   SelectField,
   TextField,
 } from "../../components/ui";
+import LocalTime from "../../components/LocalTime";
 
 type AdminUserView = {
   id: string;
@@ -162,7 +163,9 @@ export default function UsersAdmin({ initial }: { initial: AdminUserView[] }) {
                       <td>
                         <Badge tone={u.role === "owner" ? "info" : "neutral"}>{u.role}</Badge>
                       </td>
-                      <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        <LocalTime iso={u.createdAt} variant="date" />
+                      </td>
                       <td className="ad-td-actions">
                         <Button
                           variant="danger-quiet"
